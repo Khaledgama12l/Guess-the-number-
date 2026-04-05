@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خمن الرقم Pro</title>
+    <link rel="manifest" href="data:application/manifest+json,{'name':'GuessNumber','short_name':'Guess','start_url':'.','display':'standalone','background_color':'#ffffff'}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --main: #2563eb; --bg: #f8fafc; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        .reply-area { background: #fff4e5; padding: 15px; border-radius: 10px; margin: 15px 0; border: 1px solid #ffdbb3; }
+        #qrcode { display: flex; justify-content: center; margin: 15px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="setupView">
+        <h3>لعبة خمن الرقم (P2P)</h3>
+        <label>أدخل رقمك السري (3 أرقام):</label>
+        <input type="password" id="mySecret" placeholder="مثلاً: 123" maxlength="3">
+        
+        <button class="btn" onclick="initP2P(true)">إنشاء غرفة (Host)</button>
+        <button class="btn" onclick="initP2P(false)" style="background:#64748b">انضمام لغرفة (Join)</button>
+
+        <div id="connectionBox" class="hidden">
+            <p id="statusMsg">جاري تجهيز الكود...</p>
+            <div id="qrcode"></div>
+            <textarea id="sdpData" style="width:100%; height:50px; font-size:10px" placeholder="أو الصق الكود يدوياً هنا"></textarea>
+            <button class="btn" id="connectBtn" onclick="connect()" style="background:#059669">ربط الأجهزة</button>
+        </div>
+    </div>
+
+    <div id="gameView" class="hidden">
+        <div id="replySection" class="reply-area hidden">
+            <p>الخصم خمن: <strong id="oppGuessVal" style="font-size:1.4rem"></strong></p>
+            <label>مكان صح:</label>
+            <select id="posIn" style="width:100%; padding:8px; margin-bottom:10px;">
+                <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            </select>
+            <label>رقم صح مكان غلط:</label>
+            <select id="valIn" style="width:100%; padding:8px;">
+                <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            </select>
+            <button class="btn" style="margin-top:10px; background:#ea580c" onclick="submitReply()">إرسال الرد</button>
+        </div>
+
+        <input type="number" id="myGuess" placeholder="أدخل تخمينك للخصم">
+        <button class="btn" onclick="sendMyGuess()">إرسال التخمين</button>
+
+        <table>
+            <thead><tr><th>تخميني</th><th>مكان صح</th><th>رقم صح</th></tr></thead>
+            <tbody id="logs"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let pc, dataChannel;
+    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+    function initP2P(isHost) {
+        if(document.getElementById('mySecret').value.length < 3) return alert("ادخل سرك أولاً");
+        document.getElementById('connectionBox').classList.remove('hidden');
+        pc = new RTCPeerConnection(config);
+
+        pc.onicecandidate = e => {
+            if(!e.candidate) {
+                const sdp = btoa(JSON.stringify(pc.localDescription));
+                document.getElementById('sdpData').value = sdp;
+                if(isHost) {
+                    document.getElementById('qrcode').innerHTML = "";
+                    new QRCode(document.getElementById("qrcode"), { text: sdp, width: 150, height: 150 });
+                    document.getElementById('statusMsg').innerText = "خلي صاحبك يمسح الـ QR ده:";
+                }
+            }
+        };
+
+        if(isHost) {
+            dataChannel = pc.createDataChannel("chat");
+            setupEvents();
+            pc.createOffer().then(d => pc.setLocalDescription(d));
+        } else {
+            pc.ondatachannel = e => { dataChannel = e.channel; setupEvents(); };
+            document.getElementById('statusMsg').innerText = "الصق كود الـ QR الخاص بالهوست هنا:";
+        }
+    }
+
+    function connect() {
+        const raw = document.getElementById('sdpData').value;
+        const desc = new RTCSessionDescription(JSON.parse(atob(raw)));
+        pc.setRemoteDescription(desc).then(() => {
+            if(desc.type === 'offer') pc.createAnswer().then(d => pc.setLocalDescription(d));
+        });
+    }
+
+    function setupEvents() {
+        dataChannel.onopen = () => {
+            document.getElementById('setupView').classList.add('hidden');
+            document.getElementById('gameView').classList.remove('hidden');
+        };
+        dataChannel.onmessage = e => {
+            const d = JSON.parse(e.data);
+            if(d.type === 'g') {
+                document.getElementById('replySection').classList.remove('hidden');
+                document.getElementById('oppGuessVal').innerText = d.v;
+            } else {
+                addLog(d.g, d.p, d.v);
+            }
+        };
+    }
+
+    function sendMyGuess() {
+        const val = document.getElementById('myGuess').value;
+        if(val.length < 3) return;
+        dataChannel.send(JSON.stringify({type:'g', v: val}));
+        document.getElementById('myGuess').value = "";
+    }
+
+    function submitReply() {
+        const p = document.getElementById('posIn').value;
+        const v = document.getElementById('valIn').value;
+        const g = document.getElementById('oppGuessVal').innerText;
+        dataChannel.send(JSON.stringify({type:'r', g: g, p: p, v: v}));
+        document.getElementById('replySection').classList.add('hidden');
+    }
+
+    function addLog(g, p, v) {
+        const row = `<tr><td>${g}</td><td>${p}</td><td>${v}</td></tr>`;
+        document.getElementById('logs').insertAdjacentHTML('afterbegin', row);
+    }
+</script>
+</body>
+</html>
