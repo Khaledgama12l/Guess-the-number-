@@ -3,18 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خمن الرقم - رابط مباشر</title>
+    <title>خمن الرقم - Fast Connect</title>
     <style>
         :root { --main: #2563eb; --bg: #f8fafc; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; }
         .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
-        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .hidden { display: none; }
-        .share-box { background: #eef2ff; pading: 15px; border-radius: 10px; text-align: center; margin: 15px 0; border: 1px solid #e0e7ff; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
-        .reply-area { background: #fff4e5; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+        .status { font-size: 0.8rem; color: #666; text-align: center; margin: 10px 0; }
     </style>
 </head>
 <body>
@@ -22,139 +19,100 @@
 <div class="card">
     <div id="setupView">
         <h3>خمن الرقم P2P</h3>
-        <label>رقمك السري:</label>
-        <input type="password" id="mySecret" placeholder="أدخل 3 أرقام" maxlength="3">
+        <input type="password" id="mySecret" placeholder="رقمك السري (3 أرقام)" maxlength="3">
         
         <div id="initButtons">
-            <button class="btn" onclick="initGame(true)">إنشاء غرفة وإرسال رابط</button>
-            <button class="btn" onclick="initGame(false)" style="background:#64748b">انضمام يدوي</button>
+            <button class="btn" onclick="startNode(true)">إنشاء غرفة (Host)</button>
+            <button class="btn" onclick="startNode(false)" style="background:#64748b; margin-top:10px;">انضمام لرابط (Join)</button>
         </div>
 
-        <div id="waitingArea" class="hidden share-box">
-            <p id="statusMsg">جاري تجهيز الرابط...</p>
-            <button class="btn" id="shareBtn" onclick="shareLink()" style="display:none; background:#059669">مشاركة الرابط مع صديقك</button>
-            <textarea id="incomingCode" class="hidden" placeholder="الصق كود الرد هنا"></textarea>
-            <button class="btn hidden" id="finalConnect" onclick="finalize()" style="background:#059669">بدء اللعب</button>
+        <div id="waitingArea" class="hidden">
+            <div id="status" class="status">جاري التجهيز...</div>
+            <button id="shareBtn" class="btn hidden" onclick="shareGame()" style="background:#059669">مشاركة الرابط</button>
+            <textarea id="remoteSDP" class="hidden" placeholder="الصق كود الرد هنا"></textarea>
+            <button id="connectBtn" class="btn hidden" onclick="finalStep()">اتصال نهائي</button>
         </div>
     </div>
 
     <div id="gameView" class="hidden">
-        <div id="replySection" class="reply-area hidden">
-            <p>الخصم خمن: <strong id="oppGuessVal"></strong></p>
-            <select id="posIn"><option value="0">0 صح بمكانه</option><option value="1">1 صح بمكانه</option><option value="2">2 صح بمكانه</option><option value="3">3 صح بمكانه</option></select>
-            <select id="valIn"><option value="0">0 صح مكان غلط</option><option value="1">1 صح مكان غلط</option><option value="2">2 صح مكان غلط</option><option value="3">3 صح مكان غلط</option></select>
-            <button class="btn" style="background:#ea580c" onclick="submitReply()">إرسال الرد</button>
+        <div id="replyArea" class="hidden" style="background:#fff4e5; padding:10px; border-radius:8px; margin-bottom:10px;">
+            <p>الخصم خمن: <strong id="oppGuess"></strong></p>
+            <select id="pIn"><option value="0">0 صح بمكانه</option><option value="1">1 صح</option><option value="2">2 صح</option><option value="3">3 صح</option></select>
+            <select id="vIn"><option value="0">0 صح مكان غلط</option><option value="1">1 صح</option><option value="2">2 صح</option></select>
+            <button class="btn" onclick="sendReply()">رد</button>
         </div>
-
-        <input type="number" id="myGuess" placeholder="تخمينك لليوزر">
-        <button class="btn" onclick="sendGuess()">إرسال التخمين</button>
-
-        <table>
-            <thead><tr><th>الرقم</th><th>مكان صح</th><th>رقم صح</th></tr></thead>
-            <tbody id="logs"></tbody>
-        </table>
+        <input type="number" id="guessIn" placeholder="تخمينك">
+        <button class="btn" onclick="makeGuess()">إرسال</button>
+        <div id="logs" style="margin-top:15px; font-size:0.9rem;"></div>
     </div>
 </div>
 
 <script>
-    let pc, dataChannel, generatedLink = "";
-    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    let pc, dc, link = "";
+    const cfg = { iceServers: [{ urls: "stun:stun1.l.google.com:19302" }] };
 
-    window.onload = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const joinCode = urlParams.get('join');
-        if (joinCode) {
-            document.getElementById('initButtons').classList.add('hidden');
-            document.getElementById('waitingArea').classList.remove('hidden');
-            document.getElementById('statusMsg').innerText = "تم استلام الرابط. ادخل سرك ثم اضغط بدء.";
-            document.getElementById('finalConnect').classList.remove('hidden');
-        }
-    };
-
-    function initGame(isHost) {
+    function startNode(isHost) {
         if(document.getElementById('mySecret').value.length < 3) return alert("ادخل سرك");
+        document.getElementById('initButtons').classList.add('hidden');
         document.getElementById('waitingArea').classList.remove('hidden');
-        pc = new RTCPeerConnection(config);
+        
+        pc = new RTCPeerConnection(cfg);
 
-        pc.onicecandidate = e => {
-            if(!e.candidate) {
-                const sdp = btoa(JSON.stringify(pc.localDescription));
-                if(isHost) {
-                    generatedLink = window.location.origin + window.location.pathname + "?join=" + sdp;
-                    document.getElementById('shareBtn').style.display = "block";
-                    document.getElementById('statusMsg').innerText = "الرابط جاهز للمشاركة:";
-                    document.getElementById('incomingCode').classList.remove('hidden');
-                    document.getElementById('incomingCode').placeholder = "الصق كود الرد من صديقك هنا";
-                    document.getElementById('finalConnect').classList.remove('hidden');
-                } else {
-                    alert("انسخ الكود التالي وارسله للمضيف:\n\n" + sdp);
-                    console.log(sdp);
-                }
-            }
-        };
-
+        // حل مشكلة التعليق: بمجرد عمل الـ Offer هنطلع اللينك فوراً
         if(isHost) {
-            dataChannel = pc.createDataChannel("game");
-            setupEvents();
-            pc.createOffer().then(d => pc.setLocalDescription(d));
+            dc = pc.createDataChannel("game");
+            setupDC();
+            pc.createOffer().then(o => {
+                pc.setLocalDescription(o);
+                // مابنستناش الـ ICE، بنطلع اللينك بـ SDP المبدئي
+                setTimeout(() => {
+                    const sdp = btoa(JSON.stringify(pc.localDescription));
+                    link = window.location.origin + window.location.pathname + "?join=" + sdp;
+                    document.getElementById('shareBtn').classList.remove('hidden');
+                    document.getElementById('status').innerText = "الرابط جاهز!";
+                    document.getElementById('remoteSDP').classList.remove('hidden');
+                    document.getElementById('connectBtn').classList.remove('hidden');
+                }, 500); 
+            });
         } else {
-            pc.ondatachannel = e => { dataChannel = e.channel; setupEvents(); };
-            const urlParams = new URLSearchParams(window.location.search);
-            const offer = JSON.parse(atob(urlParams.get('join')));
+            const params = new URLSearchParams(window.location.search);
+            const offer = JSON.parse(atob(params.get('join')));
+            pc.ondatachannel = e => { dc = e.channel; setupDC(); };
             pc.setRemoteDescription(new RTCSessionDescription(offer)).then(() => {
-                pc.createAnswer().then(d => pc.setLocalDescription(d));
+                pc.createAnswer().then(a => {
+                    pc.setLocalDescription(a);
+                    setTimeout(() => {
+                        const sdp = btoa(JSON.stringify(pc.localDescription));
+                        alert("انسخ الكود ده واببعته لصاحبك في الشات:\n\n" + sdp);
+                        console.log(sdp);
+                    }, 500);
+                });
             });
         }
     }
 
-    async function shareLink() {
-        if (navigator.share) {
-            await navigator.share({ title: 'تحدي خمن الرقم', url: generatedLink });
-        } else {
-            prompt("انسخ الرابط يدوياً:", generatedLink);
-        }
+    function shareGame() { navigator.share ? navigator.share({url: link}) : prompt("Copy:", link); }
+
+    function finalStep() {
+        const sdp = document.getElementById('remoteSDP').value;
+        if(!sdp) return alert("الصق كود الرد الأول");
+        pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sdp))));
     }
 
-    function finalize() {
-        const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.get('join')) { // الضيف
-            // الضيف لا يحتاج لصق كود، هو بالفعل أرسل الـ Answer
-            document.getElementById('statusMsg').innerText = "انتظر المضيف يفتح القناة...";
-        } else { // المضيف
-            const sdp = document.getElementById('incomingCode').value;
-            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sdp))));
-        }
-    }
-
-    function setupEvents() {
-        dataChannel.onopen = () => {
-            document.getElementById('setupView').classList.add('hidden');
-            document.getElementById('gameView').classList.remove('hidden');
-        };
-        dataChannel.onmessage = e => {
+    function setupDC() {
+        dc.onopen = () => { document.getElementById('setupView').classList.add('hidden'); document.getElementById('gameView').classList.remove('hidden'); };
+        dc.onmessage = e => {
             const d = JSON.parse(e.data);
-            if(d.t === 'g') {
-                document.getElementById('replySection').classList.remove('hidden');
-                document.getElementById('oppGuessVal').innerText = d.v;
-            } else { addLog(d.g, d.p, d.v); }
+            if(d.t === 'g') { document.getElementById('replyArea').classList.remove('hidden'); document.getElementById('oppGuess').innerText = d.v; }
+            else { document.getElementById('logs').innerHTML += `<div>${d.g}: ${d.p} صح، ${d.v} غلط</div>`; }
         };
     }
 
-    function sendGuess() {
-        const v = document.getElementById('myGuess').value;
-        dataChannel.send(JSON.stringify({t:'g', v: v}));
-        document.getElementById('myGuess').value = "";
-    }
-
-    function submitReply() {
-        const p = document.getElementById('posIn').value, v = document.getElementById('valIn').value;
-        const g = document.getElementById('oppGuessVal').innerText;
-        dataChannel.send(JSON.stringify({t:'r', g: g, p: p, v: v}));
-        document.getElementById('replySection').classList.add('hidden');
-    }
-
-    function addLog(g, p, v) {
-        document.getElementById('logs').insertAdjacentHTML('afterbegin', `<tr><td>${g}</td><td>${p}</td><td>${v}</td></tr>`);
+    function makeGuess() { const v = document.getElementById('guessIn').value; dc.send(JSON.stringify({t:'g', v})); }
+    function sendReply() {
+        const p = document.getElementById('pIn').value, v = document.getElementById('vIn').value, g = document.getElementById('oppGuess').innerText;
+        dc.send(JSON.stringify({t:'r', g, p, v}));
+        document.getElementById('replyArea').classList.add('hidden');
     }
 </script>
 </body>
