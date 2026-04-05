@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خمن الرقم - الاتصال المباشر</title>
+    <title>خمن الرقم - النسخة المستقرة</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --main: #2563eb; --bg: #f8fafc; }
@@ -16,101 +16,92 @@
         .secret-view { background: #334155; color: white; padding: 8px 15px; border-radius: 10px; font-weight: bold; margin-bottom: 15px; display: inline-block; }
         .reply-box { background: #fff7ed; padding: 15px; border-radius: 15px; border: 1px solid #ffedd5; margin: 15px 0; }
         .log-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; }
-        #statusInfo { font-size: 0.8rem; color: #ef4444; text-align: center; margin-bottom: 10px; }
+        #status { font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div id="statusInfo">جاري تهيئة النظام...</div>
+    <div id="status" style="color: #666;">انتظار اختيار الدور...</div>
 
     <div id="initialView">
-        <h3>لعبة خمن الرقم</h3>
-        <input type="number" id="inputSecret" placeholder="ادخل سرك (مثلاً: 123)" maxlength="3">
-        <button class="btn" style="margin-bottom:10px" onclick="setupRole('host')">فتح غرفة (Host)</button>
-        <button class="btn" style="background:#64748b" onclick="setupRole('join')">دخول غرفة (Join)</button>
+        <h3>خمن الرقم</h3>
+        <input type="number" id="inputSecret" placeholder="سرك (3 أرقام)" maxlength="3">
+        <button class="btn" style="margin-bottom:10px" onclick="initRole('host')">أنا المضيف (Host)</button>
+        <button class="btn" style="background:#64748b" onclick="initRole('join')">أنا المنضم (Join)</button>
     </div>
 
     <div id="hostView" class="hidden">
-        <p>أعطِ هذا الرقم لصديقك:</p>
+        <p>رقم الغرفة للخصم:</p>
         <div id="myRoomId" class="room-display">...</div>
-        <p style="text-align:center; color:#666">بانتظار اتصال الخصم...</p>
+        <p style="text-align:center; font-size:0.8rem">بانتظار دخول الطرف الآخر...</p>
     </div>
 
     <div id="joinView" class="hidden">
-        <p>أدخل رقم غرفة الهوست:</p>
-        <input type="number" id="targetRoomId" placeholder="مثال: 456123">
-        <button class="btn" onclick="startJoining()">بدء الاتصال</button>
+        <input type="number" id="targetId" placeholder="ادخل رقم غرفة الهوست">
+        <button class="btn" onclick="startConnect()">اتصال الآن</button>
     </div>
 
     <div id="gameView" class="hidden">
-        <div class="secret-view">رقمي السري: <span id="displaySecret"></span></div>
+        <div class="secret-view">سرك: <span id="permSecret"></span></div>
         
         <div id="replyArea" class="hidden reply-box">
-            <p>الخصم خمن: <strong id="oppGuessVal" style="font-size:1.4rem"></strong></p>
-            <div style="display:flex; gap:10px">
-                <select id="pIn"><option value="0">0 صح بمكانه</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                <select id="vIn"><option value="0">0 رقم صح</option><option value="1">1</option><option value="2">2</option></select>
+            <p>خمن الخصم: <strong id="guessVal"></strong></p>
+            <div style="display:flex; gap:5px">
+                <select id="pIn"><option value="0">0 صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                <select id="vIn"><option value="0">0 غلط</option><option value="1">1</option><option value="2">2</option></select>
             </div>
-            <button class="btn" style="background:#ea580c; margin-top:10px" onclick="sendReply()">إرسال الرد</button>
+            <button class="btn" style="background:#ea580c; margin-top:10px" onclick="reply()">إرسال الرد</button>
         </div>
 
-        <input type="number" id="myGuess" placeholder="تخمينك للخصم">
-        <button class="btn" onclick="sendGuess()">إرسال التخمين</button>
-
-        <div id="logs" style="margin-top:20px; border-top:1px solid #eee"></div>
+        <input type="number" id="myGuess" placeholder="تخمينك">
+        <button class="btn" onclick="guess()">إرسال</button>
+        <div id="logs" style="margin-top:15px"></div>
     </div>
 </div>
 
 <script>
-    let peer, conn, mySecret;
+    let peer, conn, secret;
 
-    // تهيئة PeerJS عند فتح الصفحة لضمان الجاهزية
-    function initPeer(id = null) {
-        peer = id ? new Peer(id) : new Peer();
-        peer.on('open', (assignedId) => {
-            document.getElementById('statusInfo').innerText = "متصل بالسيرفر وجاهز";
-            document.getElementById('statusInfo').style.color = "#22c55e";
-            if(document.getElementById('myRoomId')) document.getElementById('myRoomId').innerText = assignedId;
-        });
-        peer.on('error', err => {
-            document.getElementById('statusInfo').innerText = "خطأ: " + err.type;
-            if(err.type === 'unavailable-id') setupRole('host');
-        });
-        peer.on('connection', c => {
-            conn = c;
-            bindEvents();
-        });
-    }
-
-    function setupRole(role) {
-        mySecret = document.getElementById('inputSecret').value;
-        if(mySecret.length < 3) return alert("اكتب سرك الأول");
+    function initRole(role) {
+        secret = document.getElementById('inputSecret').value;
+        if(secret.length < 3) return alert("اكتب سرك");
         
         document.getElementById('initialView').classList.add('hidden');
-        document.getElementById('displaySecret').innerText = mySecret;
-
+        document.getElementById('permSecret').innerText = secret;
+        
         if(role === 'host') {
+            const rid = Math.floor(100000 + Math.random() * 900000).toString();
+            peer = new Peer(rid);
             document.getElementById('hostView').classList.remove('hidden');
-            const numericId = Math.floor(100000 + Math.random() * 900000).toString();
-            initPeer(numericId);
+            document.getElementById('status').innerText = "جاري إنشاء الغرفة...";
+            
+            peer.on('open', id => {
+                document.getElementById('myRoomId').innerText = id;
+                document.getElementById('status').innerText = "الغرفة جاهزة";
+            });
+            peer.on('connection', c => {
+                conn = c;
+                setupGame();
+            });
         } else {
+            peer = new Peer();
             document.getElementById('joinView').classList.remove('hidden');
-            initPeer();
+            document.getElementById('status').innerText = "جاهز للاتصال بمضيف";
         }
     }
 
-    function startJoining() {
-        const tid = document.getElementById('targetRoomId').value;
-        if(!tid) return alert("ادخل رقم الغرفة");
-        document.getElementById('statusInfo').innerText = "جاري محاولة الاتصال بـ " + tid + "...";
+    function startConnect() {
+        const tid = document.getElementById('targetId').value;
+        if(!tid) return;
+        document.getElementById('status').innerText = "جاري الاتصال...";
         conn = peer.connect(tid);
-        bindEvents();
+        setupGame();
     }
 
-    function bindEvents() {
+    function setupGame() {
         conn.on('open', () => {
-            document.getElementById('statusInfo').innerText = "تم الاتصال بنجاح!";
+            document.getElementById('status').innerText = "متصل!";
             document.getElementById('hostView').classList.add('hidden');
             document.getElementById('joinView').classList.add('hidden');
             document.getElementById('gameView').classList.remove('hidden');
@@ -119,25 +110,25 @@
         conn.on('data', data => {
             if(data.t === 'g') {
                 document.getElementById('replyArea').classList.remove('hidden');
-                document.getElementById('oppGuessVal').innerText = data.v;
-            } else if(data.t === 'r') {
-                const item = `<div class="log-item"><span>[${data.g}]</span> <span>${data.p} صح / ${data.v} غلط</span></div>`;
-                document.getElementById('logs').insertAdjacentHTML('afterbegin', item);
+                document.getElementById('guessVal').innerText = data.v;
+            } else {
+                document.getElementById('logs').insertAdjacentHTML('afterbegin', 
+                    `<div class="log-item"><span>[${data.g}]</span> <span>${data.p} صح / ${data.v} غلط</span></div>`);
             }
         });
     }
 
-    function sendGuess() {
-        const val = document.getElementById('myGuess').value;
-        if(!val) return;
-        conn.send({t: 'g', v: val});
+    function guess() {
+        const v = document.getElementById('myGuess').value;
+        if(!v) return;
+        conn.send({t:'g', v:v});
         document.getElementById('myGuess').value = "";
     }
 
-    function sendReply() {
+    function reply() {
         const p = document.getElementById('pIn').value, v = document.getElementById('vIn').value;
-        const g = document.getElementById('oppGuessVal').innerText;
-        conn.send({t: 'r', g: g, p: p, v: v});
+        const g = document.getElementById('guessVal').innerText;
+        conn.send({t:'r', g:g, p:p, v:v});
         document.getElementById('replyArea').classList.add('hidden');
     }
 </script>
