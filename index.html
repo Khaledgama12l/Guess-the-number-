@@ -3,103 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خمن الرقم Pro</title>
-    <link rel="manifest" href="data:application/manifest+json,{'name':'GuessNumber','short_name':'Guess','start_url':'.','display':'standalone','background_color':'#ffffff'}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <title>خمن الرقم - رابط مباشر</title>
     <style>
         :root { --main: #2563eb; --bg: #f8fafc; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; }
         .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
         .btn { width: 100%; background: var(--main); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .reply-area { background: #fff4e5; padding: 15px; border-radius: 10px; margin: 15px 0; border: 1px solid #ffdbb3; }
-        #qrcode { display: flex; justify-content: center; margin: 15px 0; background: white; padding: 10px; border-radius: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
-        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
         .hidden { display: none; }
-        .status-bar { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
+        .share-box { background: #eef2ff; pading: 15px; border-radius: 10px; text-align: center; margin: 15px 0; border: 1px solid #e0e7ff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        .reply-area { background: #fff4e5; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <div id="setupView">
-        <h3>خمن الرقم - P2P</h3>
-        <div id="status" class="status-bar">جاهز لبدء اللعبة</div>
+        <h3>خمن الرقم P2P</h3>
+        <label>رقمك السري:</label>
+        <input type="password" id="mySecret" placeholder="أدخل 3 أرقام" maxlength="3">
         
-        <label>رقمك السري (3 أرقام):</label>
-        <input type="password" id="mySecret" placeholder="مثلاً: 123" maxlength="3">
-        
-        <div id="actionButtons">
-            <button class="btn" onclick="initP2P(true)">إنشاء غرفة (Host)</button>
-            <button class="btn" onclick="initP2P(false)" style="background:#64748b">انضمام يدوي (Join)</button>
+        <div id="initButtons">
+            <button class="btn" onclick="initGame(true)">إنشاء غرفة وإرسال رابط</button>
+            <button class="btn" onclick="initGame(false)" style="background:#64748b">انضمام يدوي</button>
         </div>
 
-        <div id="connectionBox" class="hidden">
-            <div id="qrcode"></div>
-            <p style="font-size:0.8rem; color:red">ملاحظة: الـ QR يحتوي على بيانات الاتصال، انتظر ظهور الكود.</p>
-            <textarea id="sdpData" class="hidden"></textarea>
-            <div id="joinInstructions" class="hidden">
-                <p>انتظر حتى يرسل لك المضيف الرابط أو الكود.</p>
-                <button class="btn" onclick="connect()" style="background:#059669">تأكيد الاتصال</button>
-            </div>
+        <div id="waitingArea" class="hidden share-box">
+            <p id="statusMsg">جاري تجهيز الرابط...</p>
+            <button class="btn" id="shareBtn" onclick="shareLink()" style="display:none; background:#059669">مشاركة الرابط مع صديقك</button>
+            <textarea id="incomingCode" class="hidden" placeholder="الصق كود الرد هنا"></textarea>
+            <button class="btn hidden" id="finalConnect" onclick="finalize()" style="background:#059669">بدء اللعب</button>
         </div>
     </div>
 
     <div id="gameView" class="hidden">
         <div id="replySection" class="reply-area hidden">
-            <p>الخصم خمن: <strong id="oppGuessVal" style="font-size:1.4rem"></strong></p>
-            <label>مكان صح:</label>
-            <select id="posIn"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-            <label>رقم صح مكان غلط:</label>
-            <select id="valIn"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-            <button class="btn" style="margin-top:10px; background:#ea580c" onclick="submitReply()">إرسال الرد</button>
+            <p>الخصم خمن: <strong id="oppGuessVal"></strong></p>
+            <select id="posIn"><option value="0">0 صح بمكانه</option><option value="1">1 صح بمكانه</option><option value="2">2 صح بمكانه</option><option value="3">3 صح بمكانه</option></select>
+            <select id="valIn"><option value="0">0 صح مكان غلط</option><option value="1">1 صح مكان غلط</option><option value="2">2 صح مكان غلط</option><option value="3">3 صح مكان غلط</option></select>
+            <button class="btn" style="background:#ea580c" onclick="submitReply()">إرسال الرد</button>
         </div>
 
-        <input type="number" id="myGuess" placeholder="أدخل تخمينك للخصم">
-        <button class="btn" onclick="sendMyGuess()">إرسال التخمين</button>
+        <input type="number" id="myGuess" placeholder="تخمينك لليوزر">
+        <button class="btn" onclick="sendGuess()">إرسال التخمين</button>
 
         <table>
-            <thead><tr><th>تخميني</th><th>مكان صح</th><th>رقم صح</th></tr></thead>
+            <thead><tr><th>الرقم</th><th>مكان صح</th><th>رقم صح</th></tr></thead>
             <tbody id="logs"></tbody>
         </table>
     </div>
 </div>
 
 <script>
-    let pc, dataChannel;
+    let pc, dataChannel, generatedLink = "";
     const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-    // فحص تلقائي عند فتح الصفحة لو فيه كود في الرابط
     window.onload = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const joinCode = urlParams.get('join');
         if (joinCode) {
-            document.getElementById('sdpData').value = joinCode;
-            document.getElementById('actionButtons').classList.add('hidden');
-            document.getElementById('joinInstructions').classList.remove('hidden');
-            document.getElementById('connectionBox').classList.remove('hidden');
-            document.getElementById('status').innerText = "تم العثور على دعوة، ادخل سرك ثم اضغط تأكيد.";
+            document.getElementById('initButtons').classList.add('hidden');
+            document.getElementById('waitingArea').classList.remove('hidden');
+            document.getElementById('statusMsg').innerText = "تم استلام الرابط. ادخل سرك ثم اضغط بدء.";
+            document.getElementById('finalConnect').classList.remove('hidden');
         }
     };
 
-    function initP2P(isHost) {
-        const secret = document.getElementById('mySecret').value;
-        if(secret.length < 3) return alert("ادخل سرك أولاً");
-        
-        document.getElementById('connectionBox').classList.remove('hidden');
+    function initGame(isHost) {
+        if(document.getElementById('mySecret').value.length < 3) return alert("ادخل سرك");
+        document.getElementById('waitingArea').classList.remove('hidden');
         pc = new RTCPeerConnection(config);
 
         pc.onicecandidate = e => {
             if(!e.candidate) {
                 const sdp = btoa(JSON.stringify(pc.localDescription));
-                document.getElementById('sdpData').value = sdp;
-                
                 if(isHost) {
-                    const joinLink = window.location.origin + window.location.pathname + "?join=" + sdp;
-                    document.getElementById('qrcode').innerHTML = "";
-                    new QRCode(document.getElementById("qrcode"), { text: joinLink, width: 180, height: 180 });
-                    document.getElementById('status').innerText = "خلي صاحبك يمسح الـ QR للدخول فوراً";
+                    generatedLink = window.location.origin + window.location.pathname + "?join=" + sdp;
+                    document.getElementById('shareBtn').style.display = "block";
+                    document.getElementById('statusMsg').innerText = "الرابط جاهز للمشاركة:";
+                    document.getElementById('incomingCode').classList.remove('hidden');
+                    document.getElementById('incomingCode').placeholder = "الصق كود الرد من صديقك هنا";
+                    document.getElementById('finalConnect').classList.remove('hidden');
+                } else {
+                    alert("انسخ الكود التالي وارسله للمضيف:\n\n" + sdp);
+                    console.log(sdp);
                 }
             }
         };
@@ -110,21 +99,31 @@
             pc.createOffer().then(d => pc.setLocalDescription(d));
         } else {
             pc.ondatachannel = e => { dataChannel = e.channel; setupEvents(); };
-            document.getElementById('joinInstructions').classList.remove('hidden');
+            const urlParams = new URLSearchParams(window.location.search);
+            const offer = JSON.parse(atob(urlParams.get('join')));
+            pc.setRemoteDescription(new RTCSessionDescription(offer)).then(() => {
+                pc.createAnswer().then(d => pc.setLocalDescription(d));
+            });
         }
     }
 
-    function connect() {
-        const raw = document.getElementById('sdpData').value;
-        if(!raw) return alert("لا يوجد كود اتصال");
-        try {
-            const desc = new RTCSessionDescription(JSON.parse(atob(raw)));
-            pc.setRemoteDescription(desc).then(() => {
-                if(desc.type === 'offer') {
-                    pc.createAnswer().then(d => pc.setLocalDescription(d));
-                }
-            });
-        } catch(e) { alert("كود غير صالح"); }
+    async function shareLink() {
+        if (navigator.share) {
+            await navigator.share({ title: 'تحدي خمن الرقم', url: generatedLink });
+        } else {
+            prompt("انسخ الرابط يدوياً:", generatedLink);
+        }
+    }
+
+    function finalize() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('join')) { // الضيف
+            // الضيف لا يحتاج لصق كود، هو بالفعل أرسل الـ Answer
+            document.getElementById('statusMsg').innerText = "انتظر المضيف يفتح القناة...";
+        } else { // المضيف
+            const sdp = document.getElementById('incomingCode').value;
+            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sdp))));
+        }
     }
 
     function setupEvents() {
@@ -134,33 +133,28 @@
         };
         dataChannel.onmessage = e => {
             const d = JSON.parse(e.data);
-            if(d.type === 'g') {
+            if(d.t === 'g') {
                 document.getElementById('replySection').classList.remove('hidden');
                 document.getElementById('oppGuessVal').innerText = d.v;
-            } else if(d.type === 'r') {
-                addLog(d.g, d.p, d.v);
-            }
+            } else { addLog(d.g, d.p, d.v); }
         };
     }
 
-    function sendMyGuess() {
-        const val = document.getElementById('myGuess').value;
-        if(val.length < 3) return;
-        dataChannel.send(JSON.stringify({type:'g', v: val}));
+    function sendGuess() {
+        const v = document.getElementById('myGuess').value;
+        dataChannel.send(JSON.stringify({t:'g', v: v}));
         document.getElementById('myGuess').value = "";
     }
 
     function submitReply() {
-        const p = document.getElementById('posIn').value;
-        const v = document.getElementById('valIn').value;
+        const p = document.getElementById('posIn').value, v = document.getElementById('valIn').value;
         const g = document.getElementById('oppGuessVal').innerText;
-        dataChannel.send(JSON.stringify({type:'r', g: g, p: p, v: v}));
+        dataChannel.send(JSON.stringify({t:'r', g: g, p: p, v: v}));
         document.getElementById('replySection').classList.add('hidden');
     }
 
     function addLog(g, p, v) {
-        const row = `<tr><td>${g}</td><td>${p}</td><td>${v}</td></tr>`;
-        document.getElementById('logs').insertAdjacentHTML('afterbegin', row);
+        document.getElementById('logs').insertAdjacentHTML('afterbegin', `<tr><td>${g}</td><td>${p}</td><td>${v}</td></tr>`);
     }
 </script>
 </body>
