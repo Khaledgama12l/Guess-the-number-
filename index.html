@@ -2,132 +2,157 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خمن الرقم - النسخة المستقرة</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>خمن الرقم - نسخة الموبايل</title>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        :root { --main: #2563eb; --bg: #f8fafc; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; }
-        .card { background: white; width: 100%; max-width: 420px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        :root { --main: #2563eb; --bg: #f1f5f9; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; display: flex; justify-content: center; }
+        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); box-sizing: border-box; }
         .hidden { display: none; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 1rem; box-sizing: border-box; }
-        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; }
-        .room-display { background: #eff6ff; border: 2px dashed #bfdbfe; color: #1e40af; padding: 15px; border-radius: 12px; text-align: center; font-size: 1.5rem; font-weight: bold; }
-        .secret-view { background: #334155; color: white; padding: 8px 15px; border-radius: 10px; font-weight: bold; margin-bottom: 15px; display: inline-block; }
-        .reply-box { background: #fff7ed; padding: 15px; border-radius: 15px; border: 1px solid #ffedd5; margin: 15px 0; }
-        .log-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; }
-        #status { font-size: 0.8rem; text-align: center; margin-bottom: 10px; font-weight: bold; }
+        input, select { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; }
+        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; touch-action: manipulation; }
+        .room-display { background: #f0f7ff; border: 2px solid #3b82f6; color: #1d4ed8; padding: 15px; border-radius: 15px; text-align: center; font-size: 2rem; font-weight: 900; letter-spacing: 5px; margin: 10px 0; }
+        .secret-tag { background: #1e293b; color: white; padding: 6px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 15px; display: inline-block; }
+        .reply-box { background: #fff7ed; padding: 15px; border-radius: 15px; border: 1px solid #fed7aa; margin: 15px 0; animation: slideIn 0.3s ease; }
+        .log-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        #status { font-size: 12px; text-align: center; margin-bottom: 10px; font-weight: bold; padding: 5px; border-radius: 5px; }
+        @keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div id="status" style="color: #666;">انتظار اختيار الدور...</div>
+    <div id="status" style="background: #e2e8f0;">انتظار بدء اللعبة...</div>
 
-    <div id="initialView">
-        <h3>خمن الرقم</h3>
-        <input type="number" id="inputSecret" placeholder="سرك (3 أرقام)" maxlength="3">
-        <button class="btn" style="margin-bottom:10px" onclick="initRole('host')">أنا المضيف (Host)</button>
-        <button class="btn" style="background:#64748b" onclick="initRole('join')">أنا المنضم (Join)</button>
+    <div id="view-init">
+        <h3 style="margin-top:0">خمن الرقم P2P</h3>
+        <input type="number" id="mySecret" placeholder="سرك (3 أرقام)" pattern="\[0-9\]*" inputmode="numeric">
+        <button class="btn" style="margin-bottom:10px" onclick="start('host')">إنشاء غرفة (Host)</button>
+        <button class="btn" style="background:#475569" onclick="start('join')">انضمام لغرفة (Join)</button>
     </div>
 
-    <div id="hostView" class="hidden">
-        <p>رقم الغرفة للخصم:</p>
-        <div id="myRoomId" class="room-display">...</div>
-        <p style="text-align:center; font-size:0.8rem">بانتظار دخول الطرف الآخر...</p>
+    <div id="view-host" class="hidden">
+        <p style="margin-bottom:5px">رقم غرفتك:</p>
+        <div id="roomIdDisplay" class="room-display">...</div>
+        <p style="font-size:13px; color:#666; text-align:center">ابعت الرقم لصاحبك وخليك فاتح الصفحة</p>
     </div>
 
-    <div id="joinView" class="hidden">
-        <input type="number" id="targetId" placeholder="ادخل رقم غرفة الهوست">
-        <button class="btn" onclick="startConnect()">اتصال الآن</button>
+    <div id="view-join" class="hidden">
+        <input type="number" id="joinId" placeholder="ادخل رقم الغرفة" inputmode="numeric">
+        <button class="btn" onclick="doConnect()">اتصال الآن</button>
     </div>
 
-    <div id="gameView" class="hidden">
-        <div class="secret-view">سرك: <span id="permSecret"></span></div>
+    <div id="view-game" class="hidden">
+        <div class="secret-tag">سرك: <span id="savedSecret"></span></div>
         
         <div id="replyArea" class="hidden reply-box">
-            <p>خمن الخصم: <strong id="guessVal"></strong></p>
+            <p style="margin:0 0 10px 0">الخصم خمن: <strong id="gNum" style="font-size:1.2rem"></strong></p>
             <div style="display:flex; gap:5px">
-                <select id="pIn"><option value="0">0 صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                <select id="vIn"><option value="0">0 غلط</option><option value="1">1</option><option value="2">2</option></select>
+                <select id="pIn"><option value="0">0 مكان صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                <select id="vIn"><option value="0">0 رقم صح</option><option value="1">1</option><option value="2">2</option></select>
             </div>
-            <button class="btn" style="background:#ea580c; margin-top:10px" onclick="reply()">إرسال الرد</button>
+            <button class="btn" style="background:#f97316; margin-top:10px; padding:10px" onclick="submitReply()">إرسال الرد</button>
         </div>
 
-        <input type="number" id="myGuess" placeholder="تخمينك">
-        <button class="btn" onclick="guess()">إرسال</button>
-        <div id="logs" style="margin-top:15px"></div>
+        <input type="number" id="myGuess" placeholder="تخمينك" inputmode="numeric">
+        <button class="btn" onclick="submitGuess()">إرسال التخمين</button>
+        
+        <div id="logs" style="margin-top:20px; border-top:2px solid #eee"></div>
     </div>
 </div>
 
 <script>
-    let peer, conn, secret;
+    let peer, conn, secretVal;
 
-    function initRole(role) {
-        secret = document.getElementById('inputSecret').value;
-        if(secret.length < 3) return alert("اكتب سرك");
-        
-        document.getElementById('initialView').classList.add('hidden');
-        document.getElementById('permSecret').innerText = secret;
-        
+    function updateStatus(msg, bg = "#e2e8f0", color = "#000") {
+        const s = document.getElementById('status');
+        s.innerText = msg;
+        s.style.background = bg;
+        s.style.color = color;
+    }
+
+    function start(role) {
+        secretVal = document.getElementById('mySecret').value;
+        if(secretVal.length < 3) return alert("اكتب سرك (3 أرقام)");
+        document.getElementById('savedSecret').innerText = secretVal;
+        document.getElementById('view-init').classList.add('hidden');
+
+        const peerOptions = {
+            debug: 1,
+            config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
+        };
+
         if(role === 'host') {
             const rid = Math.floor(100000 + Math.random() * 900000).toString();
-            peer = new Peer(rid);
-            document.getElementById('hostView').classList.remove('hidden');
-            document.getElementById('status').innerText = "جاري إنشاء الغرفة...";
-            
+            peer = new Peer(rid, peerOptions);
+            document.getElementById('view-host').classList.remove('hidden');
+            updateStatus("جاري إنشاء الغرفة...");
+
             peer.on('open', id => {
-                document.getElementById('myRoomId').innerText = id;
-                document.getElementById('status').innerText = "الغرفة جاهزة";
+                document.getElementById('roomIdDisplay').innerText = id;
+                updateStatus("الغرفة جاهزة أونلاين", "#dcfce7", "#166534");
             });
+
             peer.on('connection', c => {
                 conn = c;
-                setupGame();
+                setupDataEvents();
             });
         } else {
-            peer = new Peer();
-            document.getElementById('joinView').classList.remove('hidden');
-            document.getElementById('status').innerText = "جاهز للاتصال بمضيف";
+            peer = new Peer(peerOptions);
+            document.getElementById('view-join').classList.remove('hidden');
+            peer.on('open', () => updateStatus("جاهز للاتصال بمضيف", "#dbeafe", "#1e40af"));
         }
+
+        peer.on('error', err => {
+            alert("خطأ: " + err.type);
+            if(err.type === 'unavailable-id') start('host');
+        });
     }
 
-    function startConnect() {
-        const tid = document.getElementById('targetId').value;
+    function doConnect() {
+        const tid = document.getElementById('joinId').value;
         if(!tid) return;
-        document.getElementById('status').innerText = "جاري الاتصال...";
-        conn = peer.connect(tid);
-        setupGame();
+        updateStatus("جاري الاتصال بـ " + tid + "...");
+        conn = peer.connect(tid, { reliable: true });
+        setupDataEvents();
     }
 
-    function setupGame() {
+    function setupDataEvents() {
         conn.on('open', () => {
-            document.getElementById('status').innerText = "متصل!";
-            document.getElementById('hostView').classList.add('hidden');
-            document.getElementById('joinView').classList.add('hidden');
-            document.getElementById('gameView').classList.remove('hidden');
+            updateStatus("متصل الآن! ابدأ اللعب", "#dcfce7", "#166534");
+            document.getElementById('view-host').classList.add('hidden');
+            document.getElementById('view-join').classList.add('hidden');
+            document.getElementById('view-game').classList.remove('hidden');
         });
 
         conn.on('data', data => {
             if(data.t === 'g') {
                 document.getElementById('replyArea').classList.remove('hidden');
-                document.getElementById('guessVal').innerText = data.v;
-            } else {
-                document.getElementById('logs').insertAdjacentHTML('afterbegin', 
-                    `<div class="log-item"><span>[${data.g}]</span> <span>${data.p} صح / ${data.v} غلط</span></div>`);
+                document.getElementById('gNum').innerText = data.v;
+                if(navigator.vibrate) navigator.vibrate(200);
+            } else if(data.t === 'r') {
+                const html = `<div class="log-item"><b>${data.g}</b> <span>${data.p} صح / ${data.v} غلط</span></div>`;
+                document.getElementById('logs').insertAdjacentHTML('afterbegin', html);
             }
+        });
+
+        conn.on('close', () => {
+            updateStatus("انقطع الاتصال! حاول إعادة التحميل", "#fee2e2", "#991b1b");
+            alert("انقطع الاتصال بالطرف الآخر");
         });
     }
 
-    function guess() {
+    function submitGuess() {
         const v = document.getElementById('myGuess').value;
         if(!v) return;
         conn.send({t:'g', v:v});
         document.getElementById('myGuess').value = "";
     }
 
-    function reply() {
+    function submitReply() {
         const p = document.getElementById('pIn').value, v = document.getElementById('vIn').value;
-        const g = document.getElementById('guessVal').innerText;
+        const g = document.getElementById('gNum').innerText;
         conn.send({t:'r', g:g, p:p, v:v});
         document.getElementById('replyArea').classList.add('hidden');
     }
