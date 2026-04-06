@@ -4,39 +4,60 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mango Game</title>
 <style>
-body { font-family: Arial; text-align: center; }
-#grid { display: grid; grid-template-columns: repeat(5, 60px); gap: 5px; justify-content: center; margin: 20px; }
-.cell { width: 60px; height: 60px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.marked { background: yellow; }
-#mango { font-size: 40px; letter-spacing: 10px; }
-.crossed { text-decoration: line-through; }
-</style>
+body {
+  font-family: Arial;
+  text-align: center;
+  background: linear-gradient(135deg,#1e293b,#0f172a);
+  color: white;
+}h1 { margin-top: 20px; }
+
+button { padding: 10px 20px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; background: #22c55e; color: white; font-size: 16px; }
+
+#grid { display: none; grid-template-columns: repeat(5, 70px); gap: 10px; justify-content: center; margin: 30px; position: relative; }
+
+.cell { width: 70px; height: 70px; border-radius: 15px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+
+.marked { background: #22c55e !important; color: black; }
+
+.line { position: absolute; height: 4px; background: red; transform-origin: left; }
+
+#mango { display: none; font-size: 45px; letter-spacing: 15px; }
+
+.crossed { text-decoration: line-through; color: #ef4444; }
+
+.card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; width: fit-content; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4); } </style>
+
 </head>
-<body><h1>Mango Game</h1>
-<button onclick="newGame()">New Game</button>
-<button onclick="startGame()">Start</button><div id="grid"></div>
-<div id="mango">MANGO</div><script>
+<body><h1>Mango Game</h1><div class="card">
+  <button id="newBtn" onclick="newGame()">New Game</button>
+  <button id="startBtn" onclick="startGame()" style="display:none;">Start</button>  <div id="grid"></div>
+  <div id="mango">MANGO</div>
+</div><script>
 let grid = [];
 let count = 1;
 let started = false;
 let lines = 0;
+let completedLines = new Set();
 
 function newGame() {
+  document.getElementById("grid").style.display = "grid";
+  document.getElementById("startBtn").style.display = "inline-block";
+
   const gridDiv = document.getElementById("grid");
   gridDiv.innerHTML = "";
+
   grid = [];
   count = 1;
   started = false;
   lines = 0;
-  document.getElementById("mango").innerHTML = "MANGO";
+  completedLines.clear();
+  document.getElementById("mango").style.display = "none";
 
   for (let i = 0; i < 25; i++) {
     const cell = document.createElement("div");
     cell.classList.add("cell");
     cell.dataset.index = i;
-
     cell.onclick = () => handleClick(cell);
-
     gridDiv.appendChild(cell);
     grid.push({ value: null, marked: false });
   }
@@ -61,11 +82,42 @@ function handleClick(cell) {
 }
 
 function startGame() {
-  if (count <= 25) {
-    alert("Fill all numbers first!");
-    return;
-  }
+  if (count <= 25) return alert("Fill all numbers first!");
+
   started = true;
+  document.getElementById("mango").style.display = "block";
+}
+
+function drawLine(pattern) {
+  const gridDiv = document.getElementById("grid");
+
+  const start = pattern[0];
+  const end = pattern[4];
+
+  const startCell = gridDiv.children[start];
+  const endCell = gridDiv.children[end];
+
+  const rect1 = startCell.getBoundingClientRect();
+  const rect2 = endCell.getBoundingClientRect();
+
+  const gridRect = gridDiv.getBoundingClientRect();
+
+  const x1 = rect1.left + rect1.width/2 - gridRect.left;
+  const y1 = rect1.top + rect1.height/2 - gridRect.top;
+  const x2 = rect2.left + rect2.width/2 - gridRect.left;
+  const y2 = rect2.top + rect2.height/2 - gridRect.top;
+
+  const length = Math.hypot(x2-x1, y2-y1);
+  const angle = Math.atan2(y2-y1, x2-x1) * 180/Math.PI;
+
+  const line = document.createElement("div");
+  line.classList.add("line");
+  line.style.width = length + "px";
+  line.style.left = x1 + "px";
+  line.style.top = y1 + "px";
+  line.style.transform = `rotate(${angle}deg)`;
+
+  gridDiv.appendChild(line);
 }
 
 function checkLines() {
@@ -75,11 +127,12 @@ function checkLines() {
     [0,6,12,18,24], [4,8,12,16,20]
   ];
 
-  patterns.forEach(p => {
-    if (p.every(i => grid[i].marked) && !p.done) {
-      p.done = true;
+  patterns.forEach((p, index) => {
+    if (p.every(i => grid[i].marked) && !completedLines.has(index)) {
+      completedLines.add(index);
       lines++;
       updateMango();
+      drawLine(p);
     }
   });
 }
@@ -95,7 +148,5 @@ function updateMango() {
 
   document.getElementById("mango").innerHTML = result;
 }
-
-newGame();
 </script></body>
 </html>
