@@ -20,7 +20,7 @@
         
         button { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 14px; background: var(--accent); color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
         .btn-alt { background: #475569; }
-        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; text-align: center; }
+        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; text-align: center; }
 
         /* Mango Grid */
         #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; }
@@ -33,29 +33,24 @@
             justify-content: center; 
             font-weight: 900; 
             font-size: 1.5rem; 
-            color: #ffffff !important; /* الرقم يظهر بالأبيض فور الكتابة */
+            color: #ffffff !important; 
             transition: all 0.1s ease;
             user-select: none;
         }
-        
-        /* حالة المربع المحجوز أثناء الإدخال */
-        .cell.occupied { 
-            background: #1e293b; 
-            border: 2px solid var(--accent); 
-            color: #ffffff !important;
-        }
-
-        /* الحالة عند الشطب (أخضر) */
-        .cell.marked { 
-            background: var(--accent) !important; 
-            color: #000000 !important; /* الرقم يسود عند الخلفية الخضراء للوضوح */
-            transform: scale(0.95);
-        }
+        .cell.occupied { background: #1e293b; border: 2px solid var(--accent); color: #ffffff !important; }
+        .cell.marked { background: var(--accent) !important; color: #000000 !important; transform: scale(0.95); }
 
         #mangoWord { font-size: 2.8rem; font-weight: 900; margin-top: 25px; letter-spacing: 12px; color: var(--accent); }
         .crossed { text-decoration: line-through; color: #fff; opacity: 0.5; }
 
-        /* Guess Section */
+        /* Stepper UI for Guess Game */
+        .stepper-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 15px 0; }
+        .stepper { background: #0f172a; padding: 10px 5px; border-radius: 16px; border: 1px solid #334155; }
+        .stepper label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 8px; white-space: nowrap; }
+        .stepper-controls { display: flex; align-items: center; justify-content: space-around; }
+        .step-btn { background: #334155; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; color: white; user-select: none; }
+        .step-val { font-weight: bold; font-size: 1.2rem; min-width: 20px; }
+
         .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 250px; overflow-y: auto; border: 1px solid #334155; }
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
     </style>
@@ -73,7 +68,7 @@
         <div class="card">
             <h3>🍉 Mango Game</h3>
             <button onclick="initMango()">جدول جديد</button>
-            <button id="mangoStartBtn" class="btn-alt hidden" onclick="startMangoMode()">ابدأ </button>
+            <button id="mangoStartBtn" class="btn-alt hidden" onclick="startMangoMode()">ابدأ</button>
             <div id="grid"></div>
             <div id="mangoWord"></div>
             <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
@@ -89,13 +84,37 @@
             </div>
             <div id="guessPlay" class="hidden">
                 <div style="background:#334155; padding:5px 15px; border-radius:20px; margin-bottom:15px; display:inline-block">سرك: <span id="displaySecret" style="color:var(--accent)"></span></div>
+                
                 <input type="number" id="currentGuess" placeholder="التخمين" inputmode="numeric">
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
-                    <select id="c1"><option value="0" disabled selected >صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                    <select id="c2"><option value="0" disabled selected>مكان غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                    <select id="c3"><option value="0" disabled selected>غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                
+                <div class="stepper-container">
+                    <div class="stepper">
+                        <label>صح ✅</label>
+                        <div class="stepper-controls">
+                            <div class="step-btn" onclick="updateStep('s1', -1)">-</div>
+                            <div class="step-val" id="s1">0</div>
+                            <div class="step-btn" onclick="updateStep('s1', 1)">+</div>
+                        </div>
+                    </div>
+                    <div class="stepper">
+                        <label>مكان 🔄</label>
+                        <div class="stepper-controls">
+                            <div class="step-btn" onclick="updateStep('s2', -1)">-</div>
+                            <div class="step-val" id="s2">0</div>
+                            <div class="step-btn" onclick="updateStep('s2', 1)">+</div>
+                        </div>
+                    </div>
+                    <div class="stepper">
+                        <label>غلط ❌</label>
+                        <div class="stepper-controls">
+                            <div class="step-btn" onclick="updateStep('s3', -1)">-</div>
+                            <div class="step-val" id="s3">0</div>
+                            <div class="step-btn" onclick="updateStep('s3', 1)">+</div>
+                        </div>
+                    </div>
                 </div>
-                <button onclick="saveGuessLog()">تسجيل</button>
+
+                <button onclick="saveGuessLog()">تسجيل التخمين</button>
                 <div id="guessLogs" class="log-box"></div>
                 <button style="background:#ef4444; margin-top:10px" onclick="location.reload()">Reset</button>
             </div>
@@ -110,6 +129,7 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
+    // --- Mango Logic ---
     let mangoData = [], mangoCount = 1, isStarted = false;
 
     function initMango() {
@@ -119,7 +139,6 @@
         mangoCount = 1; isStarted = false;
         document.getElementById('mangoWord').innerHTML = '';
         document.getElementById('mangoStartBtn').classList.remove('hidden');
-        
         for (let i = 0; i < 25; i++) {
             const c = document.createElement('div');
             c.className = 'cell';
@@ -142,18 +161,11 @@
     }
 
     function startMangoMode() { 
-        if (mangoCount > 25) { 
-            isStarted = true; 
-            document.getElementById('mangoStartBtn').classList.add('hidden'); 
-        } 
+        if (mangoCount > 25) { isStarted = true; document.getElementById('mangoStartBtn').classList.add('hidden'); } 
     }
 
     function check() {
-        const wins = [
-            [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
-            [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
-            [0,6,12,18,24], [4,8,12,16,20]
-        ];
+        const wins = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],[0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],[0,6,12,18,24],[4,8,12,16,20]];
         let count = 0;
         wins.forEach(p => { if (p.every(idx => mangoData[idx].m)) count++; });
         let word = "MANGO", res = "";
@@ -161,6 +173,7 @@
         document.getElementById('mangoWord').innerHTML = res;
     }
 
+    // --- Guess Logic ---
     function startGuessGame() {
         const s = document.getElementById('inputSecret').value;
         if(s.length >= 1) {
@@ -170,12 +183,26 @@
         }
     }
 
+    function updateStep(id, val) {
+        const el = document.getElementById(id);
+        let cur = parseInt(el.innerText);
+        let next = cur + val;
+        if (next >= 0 && next <= 3) el.innerText = next;
+    }
+
     function saveGuessLog() {
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
-        const res = `${document.getElementById('c1').value}✓ | ${document.getElementById('c2').value}↻ | ${document.getElementById('c3').value}✗`;
+        const s1 = document.getElementById('s1').innerText;
+        const s2 = document.getElementById('s2').innerText;
+        const s3 = document.getElementById('s3').innerText;
+        
+        const res = `${s1}✅ | ${s2}🔄 | ${s3}❌`;
         document.getElementById('guessLogs').insertAdjacentHTML('afterbegin', `<div class="log-entry"><b>${g}</b><span>${res}</span></div>`);
+        
+        // Reset inputs
         document.getElementById('currentGuess').value = '';
+        ['s1', 's2', 's3'].forEach(id => document.getElementById(id).innerText = '0');
     }
 </script>
 </body>
