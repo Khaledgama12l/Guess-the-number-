@@ -91,9 +91,9 @@
                 <div style="background:#334155; padding:5px 15px; border-radius:20px; margin-bottom:15px; display:inline-block">سرك: <span id="displaySecret" style="color:var(--accent)"></span></div>
                 <input type="number" id="currentGuess" placeholder="التخمين" inputmode="numeric">
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
-                    <select id="c1"><option value="0">0 صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                    <select id="c2"><option value="0">0 مكان غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                    <select id="c3"><option value="0">0 غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                    <select id="c1"><option value="0" disabled >صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                    <select id="c2"><option value="0" disabled>مكان غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                    <select id="c3"><option value="0" disabled>غلط</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
                 </div>
                 <button onclick="saveGuessLog()">تسجيل</button>
                 <div id="guessLogs" class="log-box"></div>
