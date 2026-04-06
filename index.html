@@ -195,16 +195,26 @@
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
             .on('broadcast', { event: 'ready' }, () => { 
+                console.log("Opponent Ready Signal");
                 opReady = true; 
-                // الهوست بس هو اللي يقدر يبعت أمر البداية
                 if (isHost && meReady) sendStartSignal();
             })
             .on('broadcast', { event: 'start_game' }, () => { 
+                console.log("Start Signal Received");
                 runCountdown(); 
             })
             .on('broadcast', { event: 'guess' }, (p) => addLog(p.payload.g, p.payload.r, "الخصم"))
             .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log("Connected");
+                if (status === 'SUBSCRIBED') {
+                    console.log("Live");
+                    // الهوست يبعث نبضة كل ثانية لضمان أن الـ Joiner يسمعه
+                    if (isHost) {
+                        const hb = setInterval(() => {
+                            if (opReady && meReady) { clearInterval(hb); return; }
+                            roomChannel.send({ type: 'broadcast', event: 'ping', payload: {} });
+                        }, 1000);
+                    }
+                }
             });
     }
 
@@ -214,9 +224,9 @@
         meReady = true;
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "في انتظار الخصم...";
+        
         roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
         
-        // لو أنا الهوست والخصم جاهز فعلا، أبعت إشارة البداية
         if (isHost && opReady) sendStartSignal();
     }
 
@@ -233,7 +243,8 @@
         const t = setInterval(() => {
             cd.innerText = sec;
             if(sec <= 0) {
-                clearInterval(t); cd.classList.add('hidden');
+                clearInterval(t); 
+                cd.classList.add('hidden');
                 document.getElementById('guessSetup').classList.add('hidden');
                 document.getElementById('guessPlay').classList.remove('hidden');
                 document.getElementById('displaySecret').innerText = mySecret;
