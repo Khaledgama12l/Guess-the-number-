@@ -2,37 +2,81 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mango Game</title>
+<title>Game Hub</title>
 <style>
-body {
-  font-family: Arial;
-  text-align: center;
-  background: linear-gradient(135deg,#1e293b,#0f172a);
-  color: white;
-}h1 { margin-top: 20px; }
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --cell: #1f2937;
+  --accent: #22c55e;
+  --text: #e5e7eb;
+}body { margin: 0; font-family: Arial; background: radial-gradient(circle at top, #1e293b, #020617); color: var(--text); text-align: center; }
 
-button { padding: 10px 20px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; background: #22c55e; color: white; font-size: 16px; }
+.wrapper { padding: 20px; max-width: 500px; margin: auto; } .card { background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
 
-#grid { display: none; grid-template-columns: repeat(5, 70px); gap: 10px; justify-content: center; margin: 30px; position: relative; }
+button { padding: 10px 16px; margin: 8px; border: none; border-radius: 10px; background: var(--accent); cursor: pointer; font-weight: bold; }
 
-.cell { width: 70px; height: 70px; border-radius: 15px; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+.hidden { display: none; }
 
-.marked { background: #22c55e !important; color: black; }
+/* Mango */ #grid { display: none; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; } .cell { aspect-ratio: 1/1; background: var(--cell); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; } .marked { background: var(--accent); color: black; }
 
-.line { position: absolute; height: 4px; background: red; transform-origin: left; }
+#mango { display: none; font-size: 32px; margin-top: 15px; } .crossed { text-decoration: line-through; color: red; }
 
-#mango { display: none; font-size: 45px; letter-spacing: 15px; }
-
-.crossed { text-decoration: line-through; color: #ef4444; }
-
-.card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; width: fit-content; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4); } </style>
+/* Guess Game */ .section { margin-top: 20px; } input { padding: 8px; border-radius: 8px; border: none; margin: 5px; width: 80px; text-align: center; } </style>
 
 </head>
-<body><h1>Mango Game</h1><div class="card">
-  <button id="newBtn" onclick="newGame()">New Game</button>
-  <button id="startBtn" onclick="startGame()" style="display:none;">Start</button>  <div id="grid"></div>
-  <div id="mango">MANGO</div>
+<body><div class="wrapper">
+  <h1>🎮 Game Hub</h1>  <!-- Home -->  <div id="home" class="card">
+    <h2>Select Game</h2>
+    <button onclick="showGame('mango')">Mango Game</button>
+    <button onclick="showGame('guess')">Guess Game</button>
+  </div>  <!-- Mango Game -->  <div id="mangoGame" class="card hidden">
+    <h2>Mango Game</h2>
+    <button onclick="newGame()">New Game</button>
+    <button onclick="startGame()" id="startBtn" style="display:none;">Start</button><div id="grid"></div>
+<div id="mango">MANGO</div>
+
+<button onclick="backHome()">Back</button>
+
+  </div>  <!-- Guess Game -->  <div id="guessGame" class="card hidden">
+    <h2>Guess Game (Local)</h2><div id="setup">
+  <h3>Enter Secrets</h3>
+  <input id="p1secret" placeholder="Player1 Secret" maxlength="3">
+  <input id="p2secret" placeholder="Player2 Secret" maxlength="3">
+  <br>
+  <button onclick="startGuess()">Start</button>
+</div>
+
+<div id="playArea" class="hidden">
+  <h3 id="turnText"></h3>
+  <input id="guessInput" placeholder="Guess">
+  <br>
+  Bulls: <input id="bulls" type="number" min="0" max="3">
+  Cows: <input id="cows" type="number" min="0" max="3">
+  <br>
+  <button onclick="submitGuess()">Submit</button>
+
+  <div id="log"></div>
+</div>
+
+<button onclick="backHome()">Back</button>
+
+  </div>
 </div><script>
+// Navigation
+function showGame(game) {
+  document.getElementById('home').classList.add('hidden');
+  if (game === 'mango') document.getElementById('mangoGame').classList.remove('hidden');
+  if (game === 'guess') document.getElementById('guessGame').classList.remove('hidden');
+}
+
+function backHome() {
+  document.getElementById('home').classList.remove('hidden');
+  document.getElementById('mangoGame').classList.add('hidden');
+  document.getElementById('guessGame').classList.add('hidden');
+}
+
+// ===== Mango Game =====
 let grid = [];
 let count = 1;
 let started = false;
@@ -83,7 +127,6 @@ function handleClick(cell) {
 
 function startGame() {
   if (count <= 25) return alert("Fill all numbers first!");
-
   started = true;
   document.getElementById("mango").style.display = "block";
 }
@@ -99,7 +142,6 @@ function drawLine(pattern) {
 
   const rect1 = startCell.getBoundingClientRect();
   const rect2 = endCell.getBoundingClientRect();
-
   const gridRect = gridDiv.getBoundingClientRect();
 
   const x1 = rect1.left + rect1.width/2 - gridRect.left;
@@ -111,7 +153,9 @@ function drawLine(pattern) {
   const angle = Math.atan2(y2-y1, x2-x1) * 180/Math.PI;
 
   const line = document.createElement("div");
-  line.classList.add("line");
+  line.style.position = "absolute";
+  line.style.height = "4px";
+  line.style.background = "red";
   line.style.width = length + "px";
   line.style.left = x1 + "px";
   line.style.top = y1 + "px";
@@ -147,6 +191,47 @@ function updateMango() {
   }
 
   document.getElementById("mango").innerHTML = result;
+}
+
+// ===== Guess Game =====
+let p1Secret = "";
+let p2Secret = "";
+let currentPlayer = 1;
+
+function startGuess() {
+  p1Secret = document.getElementById('p1secret').value;
+  p2Secret = document.getElementById('p2secret').value;
+
+  if (p1Secret.length !== 3 || p2Secret.length !== 3) {
+    alert("Enter 3 digits for both players");
+    return;
+  }
+
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('playArea').classList.remove('hidden');
+
+  updateTurn();
+}
+
+function updateTurn() {
+  document.getElementById('turnText').innerText = "Player " + currentPlayer + " Turn";
+}
+
+function submitGuess() {
+  let guess = document.getElementById('guessInput').value;
+  let bulls = parseInt(document.getElementById('bulls').value);
+  let cows = parseInt(document.getElementById('cows').value);
+
+  let log = document.getElementById('log');
+  log.innerHTML += `<p>Player ${currentPlayer} guessed ${guess} → Bulls: ${bulls}, Cows: ${cows}</p>`;
+
+  // switch turn
+  currentPlayer = currentPlayer === 1 ? 2 : 1;
+  updateTurn();
+
+  document.getElementById('guessInput').value = '';
+  document.getElementById('bulls').value = '';
+  document.getElementById('cows').value = '';
 }
 </script></body>
 </html>
