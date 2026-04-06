@@ -216,12 +216,13 @@
             })
             .on('broadcast', { event: 'guess_sent' }, (p) => {
                 currentPendingGuess = p.payload.g;
-                turnStatus = "REPLY";
+                turnStatus = "REPLY"; // جالي تخمين، لازم أرد عليه الأول
                 updateUI();
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
-                addLog(p.payload.g, p.payload.r, "الخصم");
-                turnStatus = "GUESS";
+                addLog(p.payload.g, p.payload.r, "الخصم"); // استلمت رده على تخميني
+                // بمجرد استلام الرد، الدور عليا استنى تخمينه الجاي
+                turnStatus = "WAIT"; 
                 updateUI();
             })
             .subscribe((s) => {
@@ -275,8 +276,8 @@
         const ind = document.getElementById('turnIndicator');
         
         if (turnStatus === "REPLY") {
-            ind.innerText = "الخصم خمن: " + currentPendingGuess;
-            btn.innerText = "رد بالنتيجة";
+            ind.innerText = "الخصم خمن: " + currentPendingGuess + " (رد عليه الأول)";
+            btn.innerText = "إرسال النتيجة";
             btn.disabled = false;
             input.disabled = true;
         } else if (turnStatus === "GUESS") {
@@ -285,7 +286,7 @@
             btn.disabled = false;
             input.disabled = false;
         } else {
-            ind.innerText = "بانتظار رد الخصم...";
+            ind.innerText = "بانتظار حركة الخصم...";
             btn.innerText = "انتظر...";
             btn.disabled = true;
             input.disabled = true;
@@ -299,17 +300,23 @@
         }
 
         if (turnStatus === "REPLY") {
+            // رديت على تخمينه
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
             currentPendingGuess = null;
-            turnStatus = "GUESS"; // بعد الرد، يبدأ هو يخمن
+            
+            // اللوب: بعد ما رديت، دوري جه أخمن أنا
+            turnStatus = "GUESS"; 
             updateUI();
         } else if (turnStatus === "GUESS") {
+            // بعت تخميني
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            turnStatus = "WAIT"; // بعد التخمين، ينتظر الرد
+            
+            // استنى رده عليّ
+            turnStatus = "WAIT"; 
             updateUI();
         }
         resetInputs();
