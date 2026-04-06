@@ -2,31 +2,72 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Game Hub Offline Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Game Hub Pro</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22GameHub%20Pro%22%2C%22short_name%22%3A%22GameHub%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fcdn-icons-png.flaticon.com%2F512%2F8030%2F8030198.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%22%7D%5D%7D">
+
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --accent: #22c55e; --text: #f8fafc; }
-        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; }
-        .container { max-width: 500px; margin: auto; padding: 15px; }
-        .card { background: var(--card); padding: 20px; border-radius: 20px; margin-top: 15px; border: 1px solid #334155; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 500px; margin: auto; padding: 15px; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+        .card { background: var(--card); padding: 20px; border-radius: 20px; margin-top: 15px; border: 1px solid #334155; position: relative; }
         .hidden { display: none; }
         
         /* Inputs & Buttons */
-        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 1rem; box-sizing: border-box; text-align: center; }
-        button { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; background: var(--accent); color: white; font-weight: bold; font-size: 1rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; box-sizing: border-box; text-align: center; }
+        button { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; background: var(--accent); color: white; font-weight: bold; font-size: 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .btn-alt { background: #475569; }
         .btn-reset { background: #ef4444; margin-top: 20px; }
 
         /* Mango Grid */
-        #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; }
-        .cell { aspect-ratio: 1/1; background: #334155; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
-        .cell.occupied { cursor: not-allowed; background: #111827; color: #475569; border: 1px solid #1e293b; }
-        .cell.marked { background: var(--accent); color: #000; scale: 0.95; }
+        #mangoContainer { position: relative; width: 100%; margin-top: 20px; }
+        #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; position: relative; z-index: 1; }
+        
+        .cell { 
+            aspect-ratio: 1/1; 
+            background: #334155; 
+            border-radius: 10px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: 800; 
+            font-size: 1.3rem; 
+            cursor: pointer; 
+            color: #ffffff; /* جعل الأرقام باللون الأبيض */
+            transition: background 0.2s;
+        }
+        .cell.occupied { cursor: not-allowed; background: #111827; color: #71717a; border: 1px solid #1e293b; }
+        .cell.marked { background: var(--accent); color: #000000; scale: 0.95; }
+        
+        /* SVG Overlay للخطوط البيضاء */
+        #mangoSVG {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; /* عشان ما يعطلش الضغط على المربعات */
+            z-index: 2;
+        }
+        .winning-line {
+            stroke: #ffffff; /* لون الخط أبيض */
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 0.5s ease-out forwards;
+        }
+        @keyframes drawLine { to { stroke-dashoffset: 0; } }
+
+        #mangoWord { font-size: 2.2rem; font-weight: 900; margin-top: 20px; letter-spacing: 8px; color: var(--accent); position: relative; }
         .crossed { text-decoration: line-through; color: #ef4444; opacity: 0.8; }
 
         /* Guess Game Counters */
         .counters-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 15px 0; }
-        .counter-item label { font-size: 0.65rem; display: block; margin-bottom: 5px; color: #94a3b8; line-height: 1.2; }
+        .counter-item label { font-size: 0.65rem; display: block; margin-bottom: 5px; color: #9ca3af; }
         .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 300px; overflow-y: auto; border: 1px solid #1e293b; }
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; font-family: monospace; display: flex; justify-content: space-between; align-items: center; }
         .secret-badge { background: #334155; padding: 6px 15px; border-radius: 20px; font-size: 0.9rem; margin-bottom: 15px; display: inline-block; border: 1px solid #475569; }
@@ -36,7 +77,7 @@
 
 <div class="container">
     <div id="homeView">
-        <h2 style="margin: 20px 0 40px 0;">🎮 Game Hub Offline</h2>
+        <h2 style="margin: 20px 0 40px 0;">🎮 Game Hub</h2>
         <button onclick="switchView('mangoView')">🍉 Mango Game</button>
         <button onclick="switchView('guessView')" style="background:#3b82f6">🔢 Guess Game</button>
     </div>
@@ -46,8 +87,13 @@
             <h3 style="margin-top:0">🍉 Mango Game</h3>
             <button onclick="initMango()">جدول جديد</button>
             <button id="mangoStartBtn" class="btn-alt hidden" onclick="startMangoMode()">بدء الشطب</button>
-            <div id="grid"></div>
-            <div id="mangoWord" style="font-size:2rem; font-weight:900; margin-top:20px; letter-spacing:8px; color:var(--accent)"></div>
+            
+            <div id="mangoContainer">
+                <div id="grid"></div>
+                <svg id="mangoSVG" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            </div>
+            
+            <div id="mangoWord"></div>
             <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
         </div>
     </div>
@@ -98,6 +144,11 @@
 </div>
 
 <script>
+    // تسجيل الخدمة (Service Worker) مطلوب لعمل PWA Standalone
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch", (e) => e.respondWith(fetch(e.request)));');
+    }
+
     function switchView(viewId) {
         document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
         document.getElementById(viewId).classList.remove('hidden');
@@ -107,10 +158,15 @@
     let mangoData = [];
     let mangoCount = 1;
     let isMangoStarted = false;
+    let renderedLines = new Set(); // لتخزين الخطوط التي تم رسمها بالفعل
 
     function initMango() {
         const gridDiv = document.getElementById('grid');
+        const svgDiv = document.getElementById('mangoSVG');
         gridDiv.innerHTML = '';
+        svgDiv.innerHTML = ''; // مسح الخطوط القديمة
+        renderedLines.clear();
+        
         mangoData = new Array(25).fill(null).map(() => ({ val: null, marked: false }));
         mangoCount = 1;
         isMangoStarted = false;
@@ -120,24 +176,26 @@
         for (let i = 0; i < 25; i++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
-            cell.onclick = () => {
-                if (!isMangoStarted) {
-                    if (mangoData[i].val !== null) return; // قفل الخانة المحجوزة
-                    if (mangoCount <= 25) {
-                        mangoData[i].val = mangoCount;
-                        cell.innerText = mangoCount;
-                        cell.classList.add('occupied');
-                        mangoCount++;
-                    }
-                } else {
-                    if (mangoData[i].val && !mangoData[i].marked) {
-                        mangoData[i].marked = true;
-                        cell.classList.add('marked');
-                        checkMango();
-                    }
-                }
-            };
+            cell.onclick = () => handleMangoClick(i, cell);
             gridDiv.appendChild(cell);
+        }
+    }
+
+    function handleMangoClick(i, cell) {
+        if (!isMangoStarted) {
+            if (mangoData[i].val !== null) return;
+            if (mangoCount <= 25) {
+                mangoData[i].val = mangoCount;
+                cell.innerText = mangoCount;
+                cell.classList.add('occupied');
+                mangoCount++;
+            }
+        } else {
+            if (mangoData[i].val && !mangoData[i].marked) {
+                mangoData[i].marked = true;
+                cell.classList.add('marked');
+                checkMango();
+            }
         }
     }
 
@@ -148,12 +206,59 @@
     }
 
     function checkMango() {
-        const wins = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],[0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],[0,6,12,18,24],[4,8,12,16,20]];
-        let l = 0;
-        wins.forEach(p => { if(p.every(idx => mangoData[idx].marked)) l++; });
-        let w = "MANGO", res = "";
-        for(let i=0; i<5; i++) res += i < l ? `<span class="crossed">${w[i]}</span>` : w[i];
+        // تعريف الأنماط الفائزة ونوعها
+        const winPatterns = [
+            // Rows
+            { p: [0,1,2,3,4], t: 'h', r: 0 }, { p: [5,6,7,8,9], t: 'h', r: 1 }, { p: [10,11,12,13,14], t: 'h', r: 2 }, { p: [15,16,17,18,19], t: 'h', r: 3 }, { p: [20,21,22,23,24], t: 'h', r: 4 },
+            // Cols
+            { p: [0,5,10,15,20], t: 'v', c: 0 }, { p: [1,6,11,16,21], t: 'v', c: 1 }, { p: [2,7,12,17,22], t: 'v', c: 2 }, { p: [3,8,13,18,23], t: 'v', c: 3 }, { p: [4,9,14,19,24], t: 'v', c: 4 },
+            // Diagonals
+            { p: [0,6,12,18,24], t: 'd1' }, { p: [4,8,12,16,20], t: 'd2' }
+        ];
+
+        let lineCount = 0;
+        winPatterns.forEach((pattern, index) => {
+            if (pattern.p.every(idx => mangoData[idx].marked)) {
+                lineCount++;
+                drawWinningLine(pattern, index);
+            }
+        });
+
+        const w = "MANGO", res = "";
+        for(let i=0; i<5; i++) res += i < lineCount ? `<span class="crossed">${w[i]}</span>` : w[i];
         document.getElementById('mangoWord').innerHTML = res;
+    }
+
+    function drawWinningLine(pattern, patternIndex) {
+        if (renderedLines.has(patternIndex)) return; // لا ترسم الخط إذا تم رسمه مسبقاً
+        
+        const svg = document.getElementById('mangoSVG');
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("class", "winning-line");
+        
+        // حساب الإحداثيات بناءً على نسبة 100x100 (viewBox)
+        // الشبكة 5x5، كل مربع حجمه 20x20. مركز المربع الأول هو (10, 10)
+        let x1, y1, x2, y2;
+        
+        if (pattern.t === 'h') { // Row
+            y1 = y2 = 10 + (pattern.r * 20);
+            x1 = 5; x2 = 95;
+        } else if (pattern.t === 'v') { // Col
+            x1 = x2 = 10 + (pattern.c * 20);
+            y1 = 5; y2 = 95;
+        } else if (pattern.t === 'd1') { // Diag 1 (\)
+            x1 = 5; y1 = 5; x2 = 95; y2 = 95;
+        } else if (pattern.t === 'd2') { // Diag 2 (/)
+            x1 = 95; y1 = 5; x2 = 5; y2 = 95;
+        }
+        
+        line.setAttribute("x1", x1);
+        line.setAttribute("y1", y1);
+        line.setAttribute("x2", x2);
+        line.setAttribute("y2", y2);
+        
+        svg.appendChild(line);
+        renderedLines.add(patternIndex);
     }
 
     // --- Guess Logic ---
