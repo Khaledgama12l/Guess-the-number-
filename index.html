@@ -96,7 +96,7 @@
                     <div class="stepper"><label>مكان 🔄</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s2',-1)">-</div><div id="s2">0</div><div class="step-btn" onclick="uStep('s2',1)">+</div></div></div>
                     <div class="stepper"><label>غلط ❌</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s3',-1)">-</div><div id="s3">0</div><div class="step-btn" onclick="uStep('s3',1)">+</div></div></div>
                 </div>
-                <button id="actionBtn" onclick="handleAction()">إرسال التخمين</button>
+                <button id="actionBtn" onclick="handleAction()">إرسال</button>
                 <div id="guessLogs" class="log-box"></div>
                 <button style="background:#ef4444; margin-top:10px" onclick="location.reload()">إعادة</button>
             </div>
@@ -111,7 +111,7 @@
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
-    let myTurn = false, currentPendingGuess = null, isOnline = false;
+    let myTurn = false, currentPendingGuess = null, isOnline = false, startSignalSent = false;
 
     function switchView(v) {
         document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
@@ -199,11 +199,16 @@
         roomChannel
             .on('broadcast', { event: 'ready' }, () => { 
                 opReady = true; 
-                if (isHost && meReady) sendStartSignal();
+                if (isHost && meReady && !startSignalSent) sendStartSignal();
             })
             .on('broadcast', { event: 'start_game' }, (p) => { 
+                // الضيف يبعت تأكيد استلام للهوست عشان يبدأوا سوا
+                roomChannel.send({ type: 'broadcast', event: 'ack_start', payload: {} });
                 myTurn = isHost ? p.payload.hostStarts : !p.payload.hostStarts;
                 runCountdown(); 
+            })
+            .on('broadcast', { event: 'ack_start' }, () => {
+                if (isHost) runCountdown();
             })
             .on('broadcast', { event: 'guess_sent' }, (p) => {
                 currentPendingGuess = p.payload.g;
@@ -226,14 +231,15 @@
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "في انتظار الخصم...";
         roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
-        if (isHost && opReady) sendStartSignal();
+        if (isHost && opReady && !startSignalSent) sendStartSignal();
     }
 
     function sendStartSignal() {
+        startSignalSent = true;
         const hostStarts = Math.random() < 0.5;
-        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: { hostStarts } });
         myTurn = hostStarts;
-        runCountdown();
+        // بنبعت الإشارة وبنستنى الـ ACK من الضيف قبل ما نبدأ العد عندنا
+        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: { hostStarts } });
     }
 
     function runCountdown() {
@@ -260,11 +266,11 @@
         const input = document.getElementById('currentGuess');
         
         if (currentPendingGuess) {
-            btn.innerText = "رد على الخصم (" + currentPendingGuess + ")";
+            btn.innerText = "رد على (" + currentPendingGuess + ")";
             btn.disabled = false;
             input.disabled = true;
         } else if (myTurn) {
-            btn.innerText = "إرسال التخمين";
+            btn.innerText = "إرسال تخمين";
             btn.disabled = false;
             input.disabled = false;
         } else {
@@ -281,7 +287,6 @@
         }
 
         if (currentPendingGuess) {
-            // رد على تخمين الخصم
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
@@ -289,7 +294,6 @@
             myTurn = false;
             updateUI();
         } else if (myTurn) {
-            // إرسال تخمين جديد
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
