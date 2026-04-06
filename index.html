@@ -1,161 +1,101 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<!DOCTYPE html><html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>خمن الرقم - نسخة الموبايل</title>
-    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <style>
-        :root { --main: #2563eb; --bg: #f1f5f9; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; display: flex; justify-content: center; }
-        .card { background: white; width: 100%; max-width: 400px; padding: 20px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); box-sizing: border-box; }
-        .hidden { display: none; }
-        input, select { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 12px; font-size: 16px; box-sizing: border-box; -webkit-appearance: none; }
-        .btn { width: 100%; background: var(--main); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; touch-action: manipulation; }
-        .room-display { background: #f0f7ff; border: 2px solid #3b82f6; color: #1d4ed8; padding: 15px; border-radius: 15px; text-align: center; font-size: 2rem; font-weight: 900; letter-spacing: 5px; margin: 10px 0; }
-        .secret-tag { background: #1e293b; color: white; padding: 6px 12px; border-radius: 8px; font-size: 14px; margin-bottom: 15px; display: inline-block; }
-        .reply-box { background: #fff7ed; padding: 15px; border-radius: 15px; border: 1px solid #fed7aa; margin: 15px 0; animation: slideIn 0.3s ease; }
-        .log-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-        #status { font-size: 12px; text-align: center; margin-bottom: 10px; font-weight: bold; padding: 5px; border-radius: 5px; }
-        @keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mango Game</title>
+<style>
+body { font-family: Arial; text-align: center; }
+#grid { display: grid; grid-template-columns: repeat(5, 60px); gap: 5px; justify-content: center; margin: 20px; }
+.cell { width: 60px; height: 60px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.marked { background: yellow; }
+#mango { font-size: 40px; letter-spacing: 10px; }
+.crossed { text-decoration: line-through; }
+</style>
 </head>
-<body>
+<body><h1>Mango Game</h1>
+<button onclick="newGame()">New Game</button>
+<button onclick="startGame()">Start</button><div id="grid"></div>
+<div id="mango">MANGO</div><script>
+let grid = [];
+let count = 1;
+let started = false;
+let lines = 0;
 
-<div class="card">
-    <div id="status" style="background: #e2e8f0;">انتظار بدء اللعبة...</div>
+function newGame() {
+  const gridDiv = document.getElementById("grid");
+  gridDiv.innerHTML = "";
+  grid = [];
+  count = 1;
+  started = false;
+  lines = 0;
+  document.getElementById("mango").innerHTML = "MANGO";
 
-    <div id="view-init">
-        <h3 style="margin-top:0">خمن الرقم P2P</h3>
-        <input type="number" id="mySecret" placeholder="سرك (3 أرقام)" pattern="\[0-9\]*" inputmode="numeric">
-        <button class="btn" style="margin-bottom:10px" onclick="start('host')">إنشاء غرفة (Host)</button>
-        <button class="btn" style="background:#475569" onclick="start('join')">انضمام لغرفة (Join)</button>
-    </div>
+  for (let i = 0; i < 25; i++) {
+    const cell = document.createElement("div");
+    cell.classList.add("cell");
+    cell.dataset.index = i;
 
-    <div id="view-host" class="hidden">
-        <p style="margin-bottom:5px">رقم غرفتك:</p>
-        <div id="roomIdDisplay" class="room-display">...</div>
-        <p style="font-size:13px; color:#666; text-align:center">ابعت الرقم لصاحبك وخليك فاتح الصفحة</p>
-    </div>
+    cell.onclick = () => handleClick(cell);
 
-    <div id="view-join" class="hidden">
-        <input type="number" id="joinId" placeholder="ادخل رقم الغرفة" inputmode="numeric">
-        <button class="btn" onclick="doConnect()">اتصال الآن</button>
-    </div>
+    gridDiv.appendChild(cell);
+    grid.push({ value: null, marked: false });
+  }
+}
 
-    <div id="view-game" class="hidden">
-        <div class="secret-tag">سرك: <span id="savedSecret"></span></div>
-        
-        <div id="replyArea" class="hidden reply-box">
-            <p style="margin:0 0 10px 0">الخصم خمن: <strong id="gNum" style="font-size:1.2rem"></strong></p>
-            <div style="display:flex; gap:5px">
-                <select id="pIn"><option value="0">0 مكان صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                <select id="vIn"><option value="0">0 رقم صح</option><option value="1">1</option><option value="2">2</option></select>
-            </div>
-            <button class="btn" style="background:#f97316; margin-top:10px; padding:10px" onclick="submitReply()">إرسال الرد</button>
-        </div>
+function handleClick(cell) {
+  let i = cell.dataset.index;
 
-        <input type="number" id="myGuess" placeholder="تخمينك" inputmode="numeric">
-        <button class="btn" onclick="submitGuess()">إرسال التخمين</button>
-        
-        <div id="logs" style="margin-top:20px; border-top:2px solid #eee"></div>
-    </div>
-</div>
-
-<script>
-    let peer, conn, secretVal;
-
-    function updateStatus(msg, bg = "#e2e8f0", color = "#000") {
-        const s = document.getElementById('status');
-        s.innerText = msg;
-        s.style.background = bg;
-        s.style.color = color;
+  if (!started) {
+    if (!grid[i].value && count <= 25) {
+      grid[i].value = count;
+      cell.innerText = count;
+      count++;
     }
-
-    function start(role) {
-        secretVal = document.getElementById('mySecret').value;
-        if(secretVal.length < 3) return alert("اكتب سرك (3 أرقام)");
-        document.getElementById('savedSecret').innerText = secretVal;
-        document.getElementById('view-init').classList.add('hidden');
-
-        const peerOptions = {
-            debug: 1,
-            config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
-        };
-
-        if(role === 'host') {
-            const rid = Math.floor(100000 + Math.random() * 900000).toString();
-            peer = new Peer(rid, peerOptions);
-            document.getElementById('view-host').classList.remove('hidden');
-            updateStatus("جاري إنشاء الغرفة...");
-
-            peer.on('open', id => {
-                document.getElementById('roomIdDisplay').innerText = id;
-                updateStatus("الغرفة جاهزة أونلاين", "#dcfce7", "#166534");
-            });
-
-            peer.on('connection', c => {
-                conn = c;
-                setupDataEvents();
-            });
-        } else {
-            peer = new Peer(peerOptions);
-            document.getElementById('view-join').classList.remove('hidden');
-            peer.on('open', () => updateStatus("جاهز للاتصال بمضيف", "#dbeafe", "#1e40af"));
-        }
-
-        peer.on('error', err => {
-            alert("خطأ: " + err.type);
-            if(err.type === 'unavailable-id') start('host');
-        });
+  } else {
+    if (grid[i].value && !grid[i].marked) {
+      grid[i].marked = true;
+      cell.classList.add("marked");
+      checkLines();
     }
+  }
+}
 
-    function doConnect() {
-        const tid = document.getElementById('joinId').value;
-        if(!tid) return;
-        updateStatus("جاري الاتصال بـ " + tid + "...");
-        conn = peer.connect(tid, { reliable: true });
-        setupDataEvents();
+function startGame() {
+  if (count <= 25) {
+    alert("Fill all numbers first!");
+    return;
+  }
+  started = true;
+}
+
+function checkLines() {
+  let patterns = [
+    [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+    [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
+    [0,6,12,18,24], [4,8,12,16,20]
+  ];
+
+  patterns.forEach(p => {
+    if (p.every(i => grid[i].marked) && !p.done) {
+      p.done = true;
+      lines++;
+      updateMango();
     }
+  });
+}
 
-    function setupDataEvents() {
-        conn.on('open', () => {
-            updateStatus("متصل الآن! ابدأ اللعب", "#dcfce7", "#166534");
-            document.getElementById('view-host').classList.add('hidden');
-            document.getElementById('view-join').classList.add('hidden');
-            document.getElementById('view-game').classList.remove('hidden');
-        });
+function updateMango() {
+  let word = "MANGO";
+  let result = "";
 
-        conn.on('data', data => {
-            if(data.t === 'g') {
-                document.getElementById('replyArea').classList.remove('hidden');
-                document.getElementById('gNum').innerText = data.v;
-                if(navigator.vibrate) navigator.vibrate(200);
-            } else if(data.t === 'r') {
-                const html = `<div class="log-item"><b>${data.g}</b> <span>${data.p} صح / ${data.v} غلط</span></div>`;
-                document.getElementById('logs').insertAdjacentHTML('afterbegin', html);
-            }
-        });
+  for (let i = 0; i < 5; i++) {
+    if (i < lines) result += '<span class="crossed">' + word[i] + '</span>';
+    else result += word[i];
+  }
 
-        conn.on('close', () => {
-            updateStatus("انقطع الاتصال! حاول إعادة التحميل", "#fee2e2", "#991b1b");
-            alert("انقطع الاتصال بالطرف الآخر");
-        });
-    }
+  document.getElementById("mango").innerHTML = result;
+}
 
-    function submitGuess() {
-        const v = document.getElementById('myGuess').value;
-        if(!v) return;
-        conn.send({t:'g', v:v});
-        document.getElementById('myGuess').value = "";
-    }
-
-    function submitReply() {
-        const p = document.getElementById('pIn').value, v = document.getElementById('vIn').value;
-        const g = document.getElementById('gNum').innerText;
-        conn.send({t:'r', g:g, p:p, v:v});
-        document.getElementById('replyArea').classList.add('hidden');
-    }
-</script>
-</body>
+newGame();
+</script></body>
 </html>
