@@ -4,42 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Game Hub Pro</title>
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --accent: #22c55e; --text: #f8fafc; --primary: #3b82f6; --secondary: #8b5cf6; }
         body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 500px; margin: auto; padding: 15px; padding-top: env(safe-area-inset-top); }
         .card { background: var(--card); padding: 20px; border-radius: 24px; margin-top: 15px; border: 1px solid #334155; }
         .hidden { display: none; }
-        
         button { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 14px; background: var(--accent); color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
         button:disabled { background: #475569; opacity: 0.6; }
         .btn-alt { background: #475569; }
         .btn-primary { background: var(--primary); }
         .btn-online { background: var(--secondary); }
         input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; text-align: center; box-sizing: border-box; }
-
-        /* Mango Grid */
         #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; }
-        .cell { aspect-ratio: 1/1; background: #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; color: #fff; user-select: none; }
+        .cell { aspect-ratio: 1/1; background: #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; color: #fff; }
         .cell.occupied { background: #1e293b; border: 2px solid var(--accent); }
-        .cell.marked { background: var(--accent) !important; color: #000 !important; transform: scale(0.95); }
+        .cell.marked { background: var(--accent) !important; color: #000 !important; }
         #mangoWord { font-size: 2.8rem; font-weight: 900; margin-top: 25px; letter-spacing: 12px; color: var(--accent); }
-        .crossed { text-decoration: line-through; color: #fff; opacity: 0.5; }
-
-        /* Steppers */
+        .crossed { text-decoration: line-through; opacity: 0.5; }
         .stepper-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 15px 0; }
         .stepper { background: #0f172a; padding: 10px 5px; border-radius: 16px; border: 1px solid #334155; }
         .stepper label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 8px; }
         .stepper-controls { display: flex; align-items: center; justify-content: space-around; }
-        .step-btn { background: #334155; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
-
-        /* Logs */
+        .step-btn { background: #334155; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 250px; overflow-y: auto; border: 1px solid #334155; }
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
-        
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
     </style>
 </head>
@@ -68,31 +58,26 @@
     <div id="guessView" class="hidden">
         <div class="card">
             <h3>🔢 Guess Number</h3>
-            
             <div id="guessSetup">
                 <div id="modeSelection">
                     <button class="btn-primary" onclick="setGuessMode('local')">اللعب محلي</button>
                     <button class="btn-online" onclick="showOnlineOptions()">اللعب أونلاين</button>
                 </div>
-
                 <div id="onlineOptions" class="hidden">
                     <button class="btn-online" onclick="hostRoom()">إنشاء غرفة (Host)</button>
                     <button class="btn-primary" onclick="showJoinInput()">دخول غرفة (Join)</button>
                     <button class="btn-alt" onclick="backToMode()">رجوع</button>
                 </div>
-
                 <div id="joinInput" class="hidden">
-                    <input type="text" id="roomID" placeholder="كود الغرفة">
+                    <input type="number" id="roomID" placeholder="كود الغرفة">
                     <button class="btn-primary" onclick="joinRoom()">انضمام</button>
                     <button class="btn-alt" onclick="showOnlineOptions()">رجوع</button>
                 </div>
-
                 <div id="localSetup" class="hidden">
                     <input type="number" id="localSecret" placeholder="أدخل سرك">
                     <button onclick="startLocalGame()">ابدأ</button>
                     <button class="btn-alt" onclick="backToMode()">رجوع</button>
                 </div>
-
                 <div id="secretInputArea" class="hidden">
                     <div id="roomDisplay" style="color:var(--secondary); font-weight:bold; margin-bottom:10px"></div>
                     <input type="number" id="onlineSecretInput" placeholder="أدخل سرك">
@@ -121,14 +106,11 @@
 </div>
 
 <script>
-    // حل مشكلة المتغير: supabaseLibrary هو المتغير المكتبي، supabaseClient هو اللي بنستخدمه
     const supabaseUrl = 'https://euqgkffgmiqbdmtsnxwo.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1cWdrZmZnbWlxYmRtdHNueHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDU3MzIsImV4cCI6MjA5MTA4MTczMn0.Oe8L89X0dPJXd5oY0vS5KtlNejx5OAL4T2iKTrsPnNM';
-    
-    // استخدام المنادي الصحيح للمكتبة
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let roomChannel = null, mySecret = "", opReady = false, meReady = false;
+    let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
 
     function switchView(v) {
         document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
@@ -191,6 +173,7 @@
     }
 
     function hostRoom() {
+        isHost = true;
         const code = Math.floor(1000 + Math.random() * 9000);
         setupConn(code);
         document.getElementById('roomDisplay').innerText = "كود الغرفة: " + code;
@@ -199,6 +182,7 @@
     }
 
     function joinRoom() {
+        isHost = false;
         const code = document.getElementById('roomID').value;
         if(!code) return;
         setupConn(code);
@@ -210,10 +194,17 @@
     function setupConn(code) {
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
-            .on('broadcast', { event: 'ready' }, () => { opReady = true; checkStart(); })
+            .on('broadcast', { event: 'ready' }, () => { 
+                opReady = true; 
+                // الهوست بس هو اللي يقدر يبعت أمر البداية
+                if (isHost && meReady) sendStartSignal();
+            })
+            .on('broadcast', { event: 'start_game' }, () => { 
+                runCountdown(); 
+            })
             .on('broadcast', { event: 'guess' }, (p) => addLog(p.payload.g, p.payload.r, "الخصم"))
             .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log("Connected to Realtime");
+                if (status === 'SUBSCRIBED') console.log("Connected");
             });
     }
 
@@ -224,25 +215,31 @@
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "في انتظار الخصم...";
         roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
-        checkStart();
+        
+        // لو أنا الهوست والخصم جاهز فعلا، أبعت إشارة البداية
+        if (isHost && opReady) sendStartSignal();
     }
 
-    function checkStart() {
-        if(meReady && opReady) {
-            let sec = 3;
-            const cd = document.getElementById('countdown');
-            cd.classList.remove('hidden');
-            const t = setInterval(() => {
-                cd.innerText = sec;
-                if(sec <= 0) {
-                    clearInterval(t); cd.classList.add('hidden');
-                    document.getElementById('guessSetup').classList.add('hidden');
-                    document.getElementById('guessPlay').classList.remove('hidden');
-                    document.getElementById('displaySecret').innerText = mySecret;
-                }
-                sec--;
-            }, 1000);
-        }
+    function sendStartSignal() {
+        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: {} });
+        runCountdown();
+    }
+
+    function runCountdown() {
+        if (!document.getElementById('guessPlay').classList.contains('hidden')) return;
+        let sec = 3;
+        const cd = document.getElementById('countdown');
+        cd.classList.remove('hidden');
+        const t = setInterval(() => {
+            cd.innerText = sec;
+            if(sec <= 0) {
+                clearInterval(t); cd.classList.add('hidden');
+                document.getElementById('guessSetup').classList.add('hidden');
+                document.getElementById('guessPlay').classList.remove('hidden');
+                document.getElementById('displaySecret').innerText = mySecret;
+            }
+            sec--;
+        }, 1000);
     }
 
     function uStep(id, v) {
@@ -255,7 +252,7 @@
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
         const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-        if(roomChannel) roomChannel.send({ type: 'broadcast', event: 'guess', payload: { g: g, r: r } });
+        roomChannel.send({ type: 'broadcast', event: 'guess', payload: { g: g, r: r } });
         addLog(g, r, "أنا");
         document.getElementById('currentGuess').value = '';
         ['s1','s2','s3'].forEach(id => document.getElementById(id).innerText = '0');
