@@ -96,7 +96,7 @@
                     <div class="stepper"><label>مكان 🔄</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s2',-1)">-</div><div id="s2">0</div><div class="step-btn" onclick="uStep('s2',1)">+</div></div></div>
                     <div class="stepper"><label>غلط ❌</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s3',-1)">-</div><div id="s3">0</div><div class="step-btn" onclick="uStep('s3',1)">+</div></div></div>
                 </div>
-                <button onclick="saveLog()">إرسال التخمين</button>
+                <button id="actionBtn" onclick="handleAction()">إرسال التخمين</button>
                 <div id="guessLogs" class="log-box"></div>
                 <button style="background:#ef4444; margin-top:10px" onclick="location.reload()">إعادة</button>
             </div>
@@ -111,13 +111,14 @@
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
+    let myTurn = false, currentPendingGuess = null, isOnline = false;
 
     function switchView(v) {
         document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic ---
+    // --- Mango Logic (No changes) ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -150,10 +151,12 @@
     function setGuessMode(m) {
         document.getElementById('modeSelection').classList.add('hidden');
         document.getElementById(m + 'Setup').classList.remove('hidden');
+        isOnline = (m === 'online');
     }
     function showOnlineOptions() {
-        document.querySelectorAll('#modeSelection, #joinInput, #onlineOptions').forEach(e => e.classList.add('hidden'));
+        document.querySelectorAll('#modeSelection, #joinInput, #onlineOptions, #localSetup').forEach(e => e.classList.add('hidden'));
         document.getElementById('onlineOptions').classList.remove('hidden');
+        isOnline = true;
     }
     function showJoinInput() {
         document.getElementById('onlineOptions').classList.add('hidden');
@@ -195,27 +198,25 @@
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
             .on('broadcast', { event: 'ready' }, () => { 
-                console.log("Opponent Ready Signal");
                 opReady = true; 
                 if (isHost && meReady) sendStartSignal();
             })
-            .on('broadcast', { event: 'start_game' }, () => { 
-                console.log("Start Signal Received");
+            .on('broadcast', { event: 'start_game' }, (p) => { 
+                myTurn = isHost ? p.payload.hostStarts : !p.payload.hostStarts;
                 runCountdown(); 
             })
-            .on('broadcast', { event: 'guess' }, (p) => addLog(p.payload.g, p.payload.r, "الخصم"))
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log("Live");
-                    // الهوست يبعث نبضة كل ثانية لضمان أن الـ Joiner يسمعه
-                    if (isHost) {
-                        const hb = setInterval(() => {
-                            if (opReady && meReady) { clearInterval(hb); return; }
-                            roomChannel.send({ type: 'broadcast', event: 'ping', payload: {} });
-                        }, 1000);
-                    }
-                }
-            });
+            .on('broadcast', { event: 'guess_sent' }, (p) => {
+                currentPendingGuess = p.payload.g;
+                myTurn = false;
+                updateUI();
+            })
+            .on('broadcast', { event: 'reply_sent' }, (p) => {
+                addLog(p.payload.g, p.payload.r, "أنا");
+                myTurn = true;
+                currentPendingGuess = null;
+                updateUI();
+            })
+            .subscribe();
     }
 
     function sendReady() {
@@ -224,19 +225,18 @@
         meReady = true;
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "في انتظار الخصم...";
-        
         roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
-        
         if (isHost && opReady) sendStartSignal();
     }
 
     function sendStartSignal() {
-        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: {} });
+        const hostStarts = Math.random() < 0.5;
+        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: { hostStarts } });
+        myTurn = hostStarts;
         runCountdown();
     }
 
     function runCountdown() {
-        if (!document.getElementById('guessPlay').classList.contains('hidden')) return;
         let sec = 3;
         const cd = document.getElementById('countdown');
         cd.classList.remove('hidden');
@@ -248,23 +248,66 @@
                 document.getElementById('guessSetup').classList.add('hidden');
                 document.getElementById('guessPlay').classList.remove('hidden');
                 document.getElementById('displaySecret').innerText = mySecret;
+                updateUI();
             }
             sec--;
         }, 1000);
     }
 
-    function uStep(id, v) {
-        const el = document.getElementById(id);
-        let n = parseInt(el.innerText) + v;
-        if(n >= 0 && n <= 9) el.innerText = n;
+    function updateUI() {
+        if (!isOnline) return;
+        const btn = document.getElementById('actionBtn');
+        const input = document.getElementById('currentGuess');
+        
+        if (currentPendingGuess) {
+            btn.innerText = "رد على الخصم (" + currentPendingGuess + ")";
+            btn.disabled = false;
+            input.disabled = true;
+        } else if (myTurn) {
+            btn.innerText = "إرسال التخمين";
+            btn.disabled = false;
+            input.disabled = false;
+        } else {
+            btn.innerText = "انتظر الخصم...";
+            btn.disabled = true;
+            input.disabled = true;
+        }
     }
 
-    function saveLog() {
+    function handleAction() {
+        if (!isOnline) {
+            saveLocalLog();
+            return;
+        }
+
+        if (currentPendingGuess) {
+            // رد على تخمين الخصم
+            const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+            roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
+            addLog(currentPendingGuess, r, "الخصم");
+            currentPendingGuess = null;
+            myTurn = false;
+            updateUI();
+        } else if (myTurn) {
+            // إرسال تخمين جديد
+            const g = document.getElementById('currentGuess').value;
+            if(!g) return;
+            roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
+            myTurn = false;
+            updateUI();
+        }
+        resetInputs();
+    }
+
+    function saveLocalLog() {
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
         const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-        roomChannel.send({ type: 'broadcast', event: 'guess', payload: { g: g, r: r } });
         addLog(g, r, "أنا");
+        resetInputs();
+    }
+
+    function resetInputs() {
         document.getElementById('currentGuess').value = '';
         ['s1','s2','s3'].forEach(id => document.getElementById(id).innerText = '0');
     }
@@ -273,6 +316,12 @@
         const color = p === "أنا" ? "#22c55e" : "#3b82f6";
         const html = `<div class="log-entry"><b style="color:${color}">[${p}] ${g}</b><span>${r}</span></div>`;
         document.getElementById('guessLogs').insertAdjacentHTML('afterbegin', html);
+    }
+
+    function uStep(id, v) {
+        const el = document.getElementById(id);
+        let n = parseInt(el.innerText) + v;
+        if(n >= 0 && n <= 9) el.innerText = n;
     }
 </script>
 </body>
