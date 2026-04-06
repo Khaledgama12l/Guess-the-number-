@@ -111,14 +111,16 @@
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
-    let myTurn = false, currentPendingGuess = null, isOnline = false;
+    let turnStatus = "WAIT", currentPendingGuess = null, isOnline = false;
+
+    // turnStatus: "WAIT" (انتظار الخصم)، "REPLY" (يجب الرد على الخصم)، "GUESS" (يجب التخمين)
 
     function switchView(v) {
         document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic ---
+    // --- Mango Logic (Same) ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -202,24 +204,22 @@
                 if (isHost && meReady) sendStartSignal();
             })
             .on('broadcast', { event: 'start_signal' }, (p) => { 
-                // الضيف استلم إشارة البداية -> يبعت "تم" للهوست ويبدأ العد
-                myTurn = !p.payload.hostStarts;
+                turnStatus = (!isHost && p.payload.hostStarts) || (isHost && !p.payload.hostStarts) ? "WAIT" : "GUESS";
                 roomChannel.send({ type: 'broadcast', event: 'start_ack', payload: {} });
                 runCountdown(); 
             })
             .on('broadcast', { event: 'start_ack' }, () => {
-                // الهوست استلم تأكيد من الضيف -> يبدأ العد أخيراً
                 if (isHost) runCountdown();
             })
             .on('broadcast', { event: 'guess_sent' }, (p) => {
                 currentPendingGuess = p.payload.g;
-                myTurn = false;
+                turnStatus = "REPLY";
                 updateUI();
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
                 addLog(p.payload.g, p.payload.r, "أنا");
-                myTurn = true;
-                currentPendingGuess = null;
+                // بعد استلام الرد، بيجي دوري أخمن
+                turnStatus = "GUESS";
                 updateUI();
             })
             .subscribe();
@@ -237,8 +237,7 @@
 
     function sendStartSignal() {
         const hostStarts = Math.random() < 0.5;
-        myTurn = hostStarts;
-        // الهوست بيبعت الإشارة بس مش بيبدأ العد إلا لما يجيله start_ack
+        turnStatus = hostStarts ? "GUESS" : "WAIT";
         roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
     }
 
@@ -249,8 +248,7 @@
         const t = setInterval(() => {
             cd.innerText = sec;
             if(sec <= 0) {
-                clearInterval(t); 
-                cd.classList.add('hidden');
+                clearInterval(t); cd.classList.add('hidden');
                 document.getElementById('guessSetup').classList.add('hidden');
                 document.getElementById('guessPlay').classList.remove('hidden');
                 document.getElementById('displaySecret').innerText = mySecret;
@@ -265,12 +263,12 @@
         const btn = document.getElementById('actionBtn');
         const input = document.getElementById('currentGuess');
         
-        if (currentPendingGuess) {
-            btn.innerText = "رد على (" + currentPendingGuess + ")";
+        if (turnStatus === "REPLY") {
+            btn.innerText = "الرد على الخصم (" + currentPendingGuess + ")";
             btn.disabled = false;
             input.disabled = true;
-        } else if (myTurn) {
-            btn.innerText = "إرسال تخمين";
+        } else if (turnStatus === "GUESS") {
+            btn.innerText = "دورك تخمن رقم";
             btn.disabled = false;
             input.disabled = false;
         } else {
@@ -286,18 +284,22 @@
             return;
         }
 
-        if (currentPendingGuess) {
+        if (turnStatus === "REPLY") {
+            // الخطوة 1: الرد على الخصم
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
             currentPendingGuess = null;
-            myTurn = false;
+            // الخطوة 2: فوراً يتحول لـ GUESS عشان اللاعب يخمن في نفس الدور
+            turnStatus = "GUESS";
             updateUI();
-        } else if (myTurn) {
+        } else if (turnStatus === "GUESS") {
+            // الخطوة 3: التخمين
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            myTurn = false;
+            // الخطوة 4: الانتظار حتى الرد
+            turnStatus = "WAIT";
             updateUI();
         }
         resetInputs();
