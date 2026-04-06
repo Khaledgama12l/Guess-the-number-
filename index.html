@@ -3,195 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Game Hub Pro</title>
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#111827">
-    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/686/686589.png">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/686/686589.png">
-
-    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    
+    <title>Game Hub Offline Pro</title>
     <style>
-        body { margin: 0; font-family: system-ui, sans-serif; background: radial-gradient(circle at top, #1e293b, #020617); color: #e5e7eb; text-align: center; overscroll-behavior: none; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #22c55e; --text: #f8fafc; }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; }
         .container { max-width: 500px; margin: auto; padding: 15px; }
-        .card { background: #111827; padding: 20px; border-radius: 20px; margin-top: 15px; border: 1px solid #1f2937; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        button { padding: 12px 20px; margin: 8px; border: none; border-radius: 12px; background: #22c55e; cursor: pointer; font-weight: bold; color: white; font-size: 1rem; touch-action: manipulation; }
-        .btn-alt { background: #475569; }
-        .btn-guess { background: #f97316; }
+        .card { background: var(--card); padding: 20px; border-radius: 20px; margin-top: 15px; border: 1px solid #334155; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .hidden { display: none; }
-        input { padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #374151; background: #1f2937; color: white; width: 100%; box-sizing: border-box; text-align: center; font-size: 1rem; }
-        .room-display { background: #1e293b; border: 2px dashed #3b82f6; color: #60a5fa; padding: 15px; border-radius: 15px; font-size: 1.8rem; font-weight: 900; letter-spacing: 5px; margin: 15px 0; }
-        .secret-view { background: #334155; color: #f8fafc; padding: 8px 15px; border-radius: 10px; font-weight: bold; display: inline-block; margin-bottom: 15px; border: 1px solid #475569; }
-        .log-box { background: #0f172a; padding: 10px; border-radius: 10px; margin-top: 15px; text-align: left; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.9rem; border: 1px solid #1f2937; }
-        #status { font-size: 0.8rem; color: #9ca3af; margin-bottom: 10px; }
+        
+        /* Inputs & Buttons */
+        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 1rem; box-sizing: border-box; text-align: center; }
+        button { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; background: var(--accent); color: white; font-weight: bold; font-size: 1rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .btn-alt { background: #475569; }
+        .btn-reset { background: #ef4444; margin-top: 20px; }
+
+        /* Mango Grid */
         #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; }
-        .cell { aspect-ratio: 1/1; background: #1f2937; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 1.2rem; }
-        .cell.marked { background: #22c55e; color: black; }
-        .crossed { text-decoration: line-through; color: #ef4444; }
+        .cell { aspect-ratio: 1/1; background: #334155; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+        .cell.occupied { cursor: not-allowed; background: #111827; color: #475569; border: 1px solid #1e293b; }
+        .cell.marked { background: var(--accent); color: #000; scale: 0.95; }
+        .crossed { text-decoration: line-through; color: #ef4444; opacity: 0.8; }
+
+        /* Guess Game Counters */
+        .counters-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 15px 0; }
+        .counter-item label { font-size: 0.65rem; display: block; margin-bottom: 5px; color: #94a3b8; line-height: 1.2; }
+        .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 300px; overflow-y: auto; border: 1px solid #1e293b; }
+        .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; font-family: monospace; display: flex; justify-content: space-between; align-items: center; }
+        .secret-badge { background: #334155; padding: 6px 15px; border-radius: 20px; font-size: 0.9rem; margin-bottom: 15px; display: inline-block; border: 1px solid #475569; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="status">جاهز</div>
-
-    <div class="card" id="home">
-        <h2 style="margin-top:0">🎮 Game Hub Pro</h2>
-        <button onclick="showMango()" style="width:100%">🍉 Mango Game</button>
-        <button onclick="showGuess()" style="width:100%; background:#3b82f6">🔢 Guess Number Online</button>
-        <p id="installMsg" style="font-size: 0.7rem; color: #666; margin-top: 10px;"></p>
+    <div id="homeView">
+        <h2 style="margin: 20px 0 40px 0;">🎮 Game Hub Offline</h2>
+        <button onclick="switchView('mangoView')">🍉 Mango Game</button>
+        <button onclick="switchView('guessView')" style="background:#3b82f6">🔢 Guess Game</button>
     </div>
 
-    <div class="card hidden" id="mangoGame">
-        <h3>🍉 Mango Game</h3>
-        <button onclick="newGame()">New Game</button>
-        <button onclick="startGame()" id="startBtn" style="display:none;">Start</button>
-        <div id="grid"></div>
-        <div id="mangoWord" style="font-size:1.5rem; margin-top:15px; font-weight:900"></div>
-        <br><button onclick="backHome()" class="btn-alt">Back</button>
+    <div id="mangoView" class="hidden">
+        <div class="card">
+            <h3 style="margin-top:0">🍉 Mango Game</h3>
+            <button onclick="initMango()">جدول جديد</button>
+            <button id="mangoStartBtn" class="btn-alt hidden" onclick="startMangoMode()">بدء الشطب</button>
+            <div id="grid"></div>
+            <div id="mangoWord" style="font-size:2rem; font-weight:900; margin-top:20px; letter-spacing:8px; color:var(--accent)"></div>
+            <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
+        </div>
     </div>
 
-    <div class="card hidden" id="guessGame">
-        <h3 style="margin-top:0">🔢 Guess Number Online</h3>
-        <div id="setupView">
-            <input type="number" id="mySecretInput" placeholder="ادخل سرك (3 أرقام)" inputmode="numeric">
-            <button onclick="initP2P('host')" style="width:100%">إنشاء غرفة (Host)</button>
-            <button onclick="initP2P('join')" style="width:100%" class="btn-alt">انضمام لغرفة (Join)</button>
-        </div>
-        <div id="hostView" class="hidden">
-            <p>رقم الغرفة:</p><div id="roomIdDisplay" class="room-display">...</div>
-        </div>
-        <div id="joinView" class="hidden">
-            <input type="number" id="targetRoomId" placeholder="ادخل رقم الغرفة" inputmode="numeric">
-            <button onclick="connectToHost()" style="width:100%">اتصال</button>
-        </div>
-        <div id="playView" class="hidden">
-            <div class="secret-view">سرك: <span id="savedSecret" style="color:#22c55e"></span></div>
-            <div id="replySection" class="hidden" style="background:#1e293b; padding:15px; border-radius:12px; border:1px solid #f97316; margin-bottom:15px">
-                <p>الخصم خمن: <strong id="oppGuessVal"></strong></p>
-                <div style="display:flex; gap:5px">
-                    <select id="bullsIn"><option value="0">0 صح</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-                    <select id="cowsIn"><option value="0">0 غلط</option><option value="1">1</option><option value="2">2</option></select>
-                </div>
-                <button class="btn-guess" style="width:100%; margin-top:10px" onclick="submitReply()">رد</button>
+    <div id="guessView" class="hidden">
+        <div class="card">
+            <h3 style="margin-top:0">🔢 Guess Number</h3>
+            
+            <div id="guessSetup">
+                <input type="number" id="inputSecret" placeholder="ادخل سرك (3 أرقام)" inputmode="numeric">
+                <button onclick="startGuessGame()">ابدأ اللعب</button>
             </div>
-            <input type="number" id="myGuessInput" placeholder="تخمينك" inputmode="numeric">
-            <button class="btn-guess" style="width:100%" onclick="submitGuess()">إرسال</button>
-            <div id="gameLogs" class="log-box"></div>
+
+            <div id="guessPlay" class="hidden">
+                <div class="secret-badge">سرك: <span id="displaySecret" style="color:var(--accent)"></span></div>
+                
+                <input type="number" id="currentGuess" placeholder="التخمين" inputmode="numeric">
+                
+                <div class="counters-grid">
+                    <div class="counter-item">
+                        <label>صح ف مكانه</label>
+                        <select id="countCorrectPos">
+                            <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        </select>
+                    </div>
+                    <div class="counter-item">
+                        <label>صح ف مكان غلط</label>
+                        <select id="countWrongPos">
+                            <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        </select>
+                    </div>
+                    <div class="counter-item">
+                        <label>أرقام غلط</label>
+                        <select id="countError">
+                            <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="saveGuessLog()">تسجيل التخمين</button>
+                <div id="guessLogs" class="log-box"></div>
+                <button class="btn-reset" onclick="resetGuessGame()">Reset Game</button>
+            </div>
+            
+            <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:10px">الرئيسية</button>
         </div>
-        <br><button onclick="backHome()" class="btn-alt">Back</button>
     </div>
 </div>
 
 <script>
-// تسجيل الـ Service Worker برمجياً لتفعيل خاصية التثبيت
-if ('serviceWorker' in navigator) {
-    const swCode = `
-        self.addEventListener('install', e => e.waitUntil(caches.open('v1').then(c => c.addAll(['/']))));
-        self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
-    `;
-    const blob = new Blob([swCode], {type: 'text/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(blob));
-}
-
-// الـ Manifest لجعل المتصفح يتعامل معه كأبلكيشن
-const manifest = {
-    "name": "Game Hub Pro",
-    "short_name": "GameHub",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#111827",
-    "theme_color": "#111827",
-    "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/686/686589.png", "sizes": "512x512", "type": "image/png"}]
-};
-const manifestStr = JSON.stringify(manifest);
-const blob = new Blob([manifestStr], {type: 'application/json'});
-const manifestURL = URL.createObjectURL(blob);
-const link = document.createElement('link');
-link.rel = 'manifest';
-link.href = manifestURL;
-document.head.appendChild(link);
-
-// منطق اللعبة (نفس المنطق السابق)
-let peer, conn, mySecret;
-function updateStatus(msg) { document.getElementById('status').innerText = msg; }
-function showMango() { document.getElementById("home").classList.add("hidden"); document.getElementById("mangoGame").classList.remove("hidden"); }
-function showGuess() { document.getElementById("home").classList.add("hidden"); document.getElementById("guessGame").classList.remove("hidden"); }
-function backHome() { location.reload(); }
-
-function initP2P(role) {
-    mySecret = document.getElementById('mySecretInput').value;
-    if (mySecret.length < 3) return alert("اكتب سرك");
-    document.getElementById('savedSecret').innerText = mySecret;
-    document.getElementById('setupView').classList.add('hidden');
-    if (role === 'host') {
-        const rid = Math.floor(100000 + Math.random() * 900000).toString();
-        peer = new Peer(rid);
-        document.getElementById('hostView').classList.remove('hidden');
-        peer.on('open', id => document.getElementById('roomIdDisplay').innerText = id);
-        peer.on('connection', c => { conn = c; setupEvents(); });
-    } else {
-        peer = new Peer();
-        document.getElementById('joinView').classList.remove('hidden');
+    function switchView(viewId) {
+        document.querySelectorAll('.container > div').forEach(div => div.classList.add('hidden'));
+        document.getElementById(viewId).classList.remove('hidden');
     }
-}
 
-function connectToHost() {
-    conn = peer.connect(document.getElementById('targetRoomId').value);
-    setupEvents();
-}
+    // --- Mango Logic ---
+    let mangoData = [];
+    let mangoCount = 1;
+    let isMangoStarted = false;
 
-function setupEvents() {
-    conn.on('open', () => {
-        updateStatus("متصل!");
-        document.querySelectorAll('#hostView, #joinView').forEach(el => el.classList.add('hidden'));
-        document.getElementById('playView').classList.remove('hidden');
-    });
-    conn.on('data', data => {
-        if (data.type === 'G') {
-            document.getElementById('replySection').classList.remove('hidden');
-            document.getElementById('oppGuessVal').innerText = data.val;
-        } else {
-            document.getElementById('gameLogs').insertAdjacentHTML('afterbegin', `<div><b>${data.guess}</b> ⮕ ${data.b}B, ${data.c}C</div>`);
+    function initMango() {
+        const gridDiv = document.getElementById('grid');
+        gridDiv.innerHTML = '';
+        mangoData = new Array(25).fill(null).map(() => ({ val: null, marked: false }));
+        mangoCount = 1;
+        isMangoStarted = false;
+        document.getElementById('mangoWord').innerHTML = '';
+        document.getElementById('mangoStartBtn').classList.remove('hidden');
+
+        for (let i = 0; i < 25; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.onclick = () => {
+                if (!isMangoStarted) {
+                    if (mangoData[i].val !== null) return; // قفل الخانة المحجوزة
+                    if (mangoCount <= 25) {
+                        mangoData[i].val = mangoCount;
+                        cell.innerText = mangoCount;
+                        cell.classList.add('occupied');
+                        mangoCount++;
+                    }
+                } else {
+                    if (mangoData[i].val && !mangoData[i].marked) {
+                        mangoData[i].marked = true;
+                        cell.classList.add('marked');
+                        checkMango();
+                    }
+                }
+            };
+            gridDiv.appendChild(cell);
         }
-    });
-}
-
-function submitGuess() {
-    const val = document.getElementById('myGuessInput').value;
-    conn.send({ type: 'G', val: val });
-    document.getElementById('gameLogs').insertAdjacentHTML('afterbegin', `<div style="color:gray">تخمينك: ${val}</div>`);
-    document.getElementById('myGuessInput').value = "";
-}
-
-function submitReply() {
-    const b = document.getElementById('bullsIn').value, c = document.getElementById('cowsIn').value;
-    conn.send({ type: 'R', guess: document.getElementById('oppGuessVal').innerText, b: b, c: c });
-    document.getElementById('replySection').classList.add('hidden');
-}
-
-// Mango Logic (مختصر)
-let gridArr = []; let count = 1; let started = false; let lines = 0;
-function newGame() {
-    const g = document.getElementById("grid"); g.innerHTML = ""; gridArr = []; count = 1; lines = 0;
-    document.getElementById("startBtn").style.display = "inline-block";
-    for(let i=0; i<25; i++) {
-        let c = document.createElement("div"); c.className = "cell"; c.onclick = () => {
-            if(!started && count <= 25) { gridArr[i].v = count; c.innerText = count++; }
-            else if(started && !gridArr[i].m) { gridArr[i].m = true; c.classList.add("marked"); check(); }
-        };
-        g.appendChild(c); gridArr.push({v:null, m:false});
     }
-}
-function startGame() { started = true; document.getElementById("startBtn").style.display="none"; }
-function check() {
-    const win = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],[0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],[0,6,12,18,24],[4,8,12,16,20]];
-    let l = 0; win.forEach(p => { if(p.every(i => gridArr[i].m)) l++; });
-    let w = "MANGO"; let res = ""; for(let i=0; i<5; i++) res += i<l ? `<span class="crossed">${w[i]}</span>` : w[i];
-    document.getElementById("mangoWord").innerHTML = res;
-}
+
+    function startMangoMode() {
+        if (mangoCount <= 25) return;
+        isMangoStarted = true;
+        document.getElementById('mangoStartBtn').classList.add('hidden');
+    }
+
+    function checkMango() {
+        const wins = [[0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],[0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],[0,6,12,18,24],[4,8,12,16,20]];
+        let l = 0;
+        wins.forEach(p => { if(p.every(idx => mangoData[idx].marked)) l++; });
+        let w = "MANGO", res = "";
+        for(let i=0; i<5; i++) res += i < l ? `<span class="crossed">${w[i]}</span>` : w[i];
+        document.getElementById('mangoWord').innerHTML = res;
+    }
+
+    // --- Guess Logic ---
+    function startGuessGame() {
+        const s = document.getElementById('inputSecret').value;
+        if (s.length < 3) return;
+        document.getElementById('displaySecret').innerText = s;
+        document.getElementById('guessSetup').classList.add('hidden');
+        document.getElementById('guessPlay').classList.remove('hidden');
+    }
+
+    function saveGuessLog() {
+        const g = document.getElementById('currentGuess').value;
+        if(!g) return;
+        const cp = document.getElementById('countCorrectPos').value;
+        const wp = document.getElementById('countWrongPos').value;
+        const er = document.getElementById('countError').value;
+
+        const entry = `<div class="log-entry"><b>${g}</b> <span>${cp}✓ | ${wp}↻ | ${er}✗</span></div>`;
+        document.getElementById('guessLogs').insertAdjacentHTML('afterbegin', entry);
+        
+        document.getElementById('currentGuess').value = '';
+        document.querySelectorAll('#guessPlay select').forEach(s => s.value = '0');
+    }
+
+    function resetGuessGame() {
+        document.getElementById('guessLogs').innerHTML = '';
+        document.getElementById('guessSetup').classList.remove('hidden');
+        document.getElementById('guessPlay').classList.add('hidden');
+    }
 </script>
 </body>
 </html>
