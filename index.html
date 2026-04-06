@@ -111,14 +111,14 @@
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
-    let myTurn = false, currentPendingGuess = null, isOnline = false, startSignalSent = false;
+    let myTurn = false, currentPendingGuess = null, isOnline = false;
 
     function switchView(v) {
         document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic (No changes) ---
+    // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -199,15 +199,16 @@
         roomChannel
             .on('broadcast', { event: 'ready' }, () => { 
                 opReady = true; 
-                if (isHost && meReady && !startSignalSent) sendStartSignal();
+                if (isHost && meReady) sendStartSignal();
             })
-            .on('broadcast', { event: 'start_game' }, (p) => { 
-                // الضيف يبعت تأكيد استلام للهوست عشان يبدأوا سوا
-                roomChannel.send({ type: 'broadcast', event: 'ack_start', payload: {} });
-                myTurn = isHost ? p.payload.hostStarts : !p.payload.hostStarts;
+            .on('broadcast', { event: 'start_signal' }, (p) => { 
+                // الضيف استلم إشارة البداية -> يبعت "تم" للهوست ويبدأ العد
+                myTurn = !p.payload.hostStarts;
+                roomChannel.send({ type: 'broadcast', event: 'start_ack', payload: {} });
                 runCountdown(); 
             })
-            .on('broadcast', { event: 'ack_start' }, () => {
+            .on('broadcast', { event: 'start_ack' }, () => {
+                // الهوست استلم تأكيد من الضيف -> يبدأ العد أخيراً
                 if (isHost) runCountdown();
             })
             .on('broadcast', { event: 'guess_sent' }, (p) => {
@@ -231,15 +232,14 @@
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "في انتظار الخصم...";
         roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
-        if (isHost && opReady && !startSignalSent) sendStartSignal();
+        if (isHost && opReady) sendStartSignal();
     }
 
     function sendStartSignal() {
-        startSignalSent = true;
         const hostStarts = Math.random() < 0.5;
         myTurn = hostStarts;
-        // بنبعت الإشارة وبنستنى الـ ACK من الضيف قبل ما نبدأ العد عندنا
-        roomChannel.send({ type: 'broadcast', event: 'start_game', payload: { hostStarts } });
+        // الهوست بيبعت الإشارة بس مش بيبدأ العد إلا لما يجيله start_ack
+        roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
     }
 
     function runCountdown() {
