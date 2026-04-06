@@ -90,6 +90,7 @@
                 <div style="background:#334155; padding:5px 15px; border-radius:20px; margin-bottom:15px; display:inline-block">
                     سرك: <span id="displaySecret" style="color:var(--accent)"></span>
                 </div>
+                <div id="turnIndicator" style="margin-bottom: 10px; font-weight: bold; color: var(--primary);"></div>
                 <input type="number" id="currentGuess" placeholder="التخمين" inputmode="numeric">
                 <div class="stepper-container">
                     <div class="stepper"><label>صح ✅</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s1',-1)">-</div><div id="s1">0</div><div class="step-btn" onclick="uStep('s1',1)">+</div></div></div>
@@ -119,7 +120,7 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic (As is) ---
+    // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -204,7 +205,6 @@
             .on('broadcast', { event: 'start_signal' }, (p) => { 
                 if (gameStarted) return;
                 turnStatus = p.payload.hostStarts ? "WAIT" : "GUESS";
-                // تأكيد الاستلام فوراً
                 roomChannel.send({ type: 'broadcast', event: 'start_ack', payload: {} });
                 runCountdown(); 
             })
@@ -225,7 +225,7 @@
                 updateUI();
             })
             .subscribe((s) => {
-                if(s === 'SUBSCRIBED') document.getElementById('waitMsg').innerText = "متصل.. أدخل سرك واضغط جاهز";
+                if(s === 'SUBSCRIBED') document.getElementById('waitMsg').innerText = "متصل ✅";
             });
     }
 
@@ -243,8 +243,6 @@
         if (gameStarted) return;
         const hostStarts = Math.random() < 0.5;
         turnStatus = hostStarts ? "GUESS" : "WAIT";
-        
-        // المحاولة المتكررة لضمان وصول الإشارة للضيف
         startRetryInterval = setInterval(() => {
             roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
         }, 1000);
@@ -274,17 +272,21 @@
         if (!isOnline) return;
         const btn = document.getElementById('actionBtn');
         const input = document.getElementById('currentGuess');
+        const ind = document.getElementById('turnIndicator');
         
         if (turnStatus === "REPLY") {
-            btn.innerText = "الرد على (" + currentPendingGuess + ")";
+            ind.innerText = "الخصم خمن: " + currentPendingGuess;
+            btn.innerText = "رد بالنتيجة";
             btn.disabled = false;
             input.disabled = true;
         } else if (turnStatus === "GUESS") {
-            btn.innerText = "دورك تخمن";
+            ind.innerText = "دورك تخمن رقم";
+            btn.innerText = "إرسال تخمين";
             btn.disabled = false;
             input.disabled = false;
         } else {
-            btn.innerText = "انتظر الخصم...";
+            ind.innerText = "بانتظار رد الخصم...";
+            btn.innerText = "انتظر...";
             btn.disabled = true;
             input.disabled = true;
         }
@@ -299,15 +301,15 @@
         if (turnStatus === "REPLY") {
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
-            addLog(currentPendingGuess, r, "أنا");
+            addLog(currentPendingGuess, r, "الخصم");
             currentPendingGuess = null;
-            turnStatus = "GUESS";
+            turnStatus = "GUESS"; // بعد الرد، يبدأ هو يخمن
             updateUI();
         } else if (turnStatus === "GUESS") {
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            turnStatus = "WAIT";
+            turnStatus = "WAIT"; // بعد التخمين، ينتظر الرد
             updateUI();
         }
         resetInputs();
