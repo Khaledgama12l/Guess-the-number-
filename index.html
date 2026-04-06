@@ -1,77 +1,102 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Game Hub</title>
-<style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: radial-gradient(circle at top, #1e293b, #020617);
-  color: #e5e7eb;
-  text-align: center;
-}.container { max-width: 600px; margin: auto; padding: 20px; } .card { background: #111827; padding: 20px; border-radius: 16px; margin-top: 20px; }
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Game Hub Pro</title>
+<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdhbWUgSHViIFBybyIsCiAgInNob3J0X25hbWUiOiAiR2FtZUh1YiIsCiAgInN0YXJ0X3VybCI6ICIuIiwKICAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwKICAiYmFja2dyb3VuZF9jb2xvciI6ICIjMDIwNjE3IiwKICAidGhlbWVfY29sb3IiOiAiIzIyYzU1ZSIKfQ==">
 
-button { padding: 10px 16px; margin: 6px; border: none; border-radius: 8px; background: #22c55e; cursor: pointer; font-weight: bold; }
+<style>
+:root { --bg: #020617; --card: #111827; --primary: #22c55e; --text: #e5e7eb; }
+body { margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; background: radial-gradient(circle at top, #1e293b, var(--bg)); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+.container { width: 100%; max-width: 500px; padding: 20px; box-sizing: border-box; }
+.card { background: var(--card); padding: 24px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 20px; border: 1px solid #1e293b; }
+h2, h3 { margin-top: 0; color: var(--primary); }
+
+button { width: 100%; padding: 14px; margin: 8px 0; border: none; border-radius: 12px; background: var(--primary); color: #052e16; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+button:active { transform: scale(0.98); opacity: 0.9; }
+button.secondary { background: #334155; color: white; }
 
 .hidden { display: none; }
+input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #334155; background: #1f2937; color: white; text-align: center; box-sizing: border-box; }
 
-/* Mango */ #grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 20px; }
+/* Mango Grid */
+#grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 20px 0; }
+.cell { aspect-ratio: 1/1; background: #1f2937; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; border: 2px solid transparent; }
+.cell.marked { background: var(--primary); color: #052e16; border-color: #4ade80; }
+.mango-word { font-size: 28px; letter-spacing: 8px; font-weight: 900; margin: 15px 0; }
+.crossed { text-decoration: line-through; color: #ef4444; opacity: 0.6; }
 
-.cell { aspect-ratio: 1/1; background: #1f2937; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-
-.cell.marked { background: #22c55e; color: black; }
-
-.crossed { text-decoration: line-through; color: red; }
-
-/* Guess */ input { padding: 8px; margin: 5px; border-radius: 6px; border: none; text-align: center; } </style>
-
+/* Log Area */
+#log { text-align: left; background: #0f172a; padding: 10px; border-radius: 8px; margin-top: 15px; max-height: 150px; overflow-y: auto; font-size: 14px; }
+</style>
 </head>
-<body><div class="container">  <!-- HOME -->  <div class="card" id="home">
-    <h2>🎮 Game Hub</h2>
+<body>
+
+<div class="container">
+  <div class="card" id="home">
+    <div style="font-size: 50px;">🎮</div>
+    <h2>Game Hub Pro</h2>
     <button onclick="showMango()">🍉 Mango Game</button>
     <button onclick="showGuess()">🔢 Guess Game Online</button>
-  </div>  <!-- MANGO GAME -->  <div class="card hidden" id="mangoGame">
-    <h3>🍉 Mango Game</h3>
-    <button onclick="newGame()">New Game</button>
-    <button onclick="startGame()" id="startBtn" style="display:none;">Start</button><div id="grid"></div>
-<div id="mangoWord"></div>
-<br>
-<button onclick="backHome()">Back</button>
-
-  </div>  <!-- GUESS GAME -->  <div class="card hidden" id="guessGame">
-    <h3>🔢 Guess Game (Online)</h3><input id="roomId" placeholder="Room ID"><br>
-<input id="secret" placeholder="Secret Number"><br>
-
-<button onclick="createRoom()">Create Room</button>
-<button onclick="joinRoom()">Join Room</button>
-
-<div id="guessArea" class="hidden">
-  <h4 id="status"></h4>
-  <input id="guess" placeholder="Guess">
-  <br>
-  <button onclick="sendGuess()">Send Guess</button>
-
-  <div>
-    <p>Bulls: <input id="bulls" type="number"></p>
-    <p>Cows: <input id="cows" type="number"></p>
-    <button onclick="sendResult()">Send Result</button>
+    <button class="secondary" id="installBtn" style="display:none;" onclick="installApp()">📲 Install App</button>
   </div>
 
-  <div id="log"></div>
+  <div class="card hidden" id="mangoGame">
+    <h3>🍉 Mango Game</h3>
+    <div id="mangoWord" class="mango-word">MANGO</div>
+    <div id="grid"></div>
+    <button id="startBtn" onclick="startGame()">Lock Numbers</button>
+    <button class="secondary" onclick="newGame()">Reset</button>
+    <button class="secondary" onclick="backHome()">Back</button>
+  </div>
+
+  <div class="card hidden" id="guessGame">
+    <h3>🔢 Guess Game Online</h3>
+    <input id="roomId" placeholder="Room ID (e.g. 123)">
+    <button onclick="joinRoom()">Enter Room</button>
+    
+    <div id="guessArea" class="hidden">
+      <p id="status" style="color:var(--primary)"></p>
+      <input id="guess" type="number" placeholder="Enter 4 digits">
+      <button onclick="sendGuess()">Send Guess</button>
+      <hr style="border: 0.5px solid #334155; margin: 20px 0;">
+      <div style="display:flex; gap:10px;">
+        <input id="bulls" type="number" placeholder="Bulls">
+        <input id="cows" type="number" placeholder="Cows">
+      </div>
+      <button onclick="sendResult()">Submit Result</button>
+      <div id="log"></div>
+    </div>
+    <button class="secondary" onclick="backHome()" style="margin-top:20px;">Back</button>
+  </div>
 </div>
 
-<br>
-<button onclick="backHome()">Back</button>
-
-  </div></div><script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script><script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
 const socket = io("https://YOUR-SERVER-URL.onrender.com");
 let room = "";
 
-// NAVIGATION
+// PWA Install Logic
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').style.display = 'block';
+});
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt = null;
+  }
+}
+
+// Navigation
 function showMango() {
   document.getElementById("home").classList.add("hidden");
   document.getElementById("mangoGame").classList.remove("hidden");
+  newGame();
 }
 
 function showGuess() {
@@ -80,130 +105,107 @@ function showGuess() {
 }
 
 function backHome() {
-  location.reload();
+  document.getElementById("home").classList.remove("hidden");
+  document.getElementById("mangoGame").classList.add("hidden");
+  document.getElementById("guessGame").classList.add("hidden");
 }
 
-// ================= MANGO =================
-let grid = [];
+// MANGO LOGIC
+let gridData = [];
 let count = 1;
 let started = false;
-let completedLines = new Set();
 let lines = 0;
+let completedLines = new Set();
 
 function newGame() {
   const gridDiv = document.getElementById("grid");
   gridDiv.innerHTML = "";
-  grid = [];
+  gridData = [];
   count = 1;
   started = false;
-  completedLines.clear();
   lines = 0;
-
-  document.getElementById("startBtn").style.display = "inline-block";
-  document.getElementById("mangoWord").innerHTML = "";
+  completedLines.clear();
+  document.getElementById("mangoWord").innerHTML = "MANGO";
+  document.getElementById("startBtn").style.display = "block";
 
   for (let i = 0; i < 25; i++) {
     const cell = document.createElement("div");
     cell.classList.add("cell");
-    cell.dataset.index = i;
-    cell.onclick = () => handleClick(cell);
+    cell.onclick = () => {
+      if (!started && !gridData[i].value && count <= 25) {
+        gridData[i].value = count;
+        cell.innerText = count++;
+      } else if (started && gridData[i].value && !gridData[i].marked) {
+        gridData[i].marked = true;
+        cell.classList.add("marked");
+        checkBingo();
+      }
+    };
     gridDiv.appendChild(cell);
-
-    grid.push({ value: null, marked: false });
-  }
-}
-
-function handleClick(cell) {
-  let i = cell.dataset.index;
-
-  if (!started) {
-    if (!grid[i].value && count <= 25) {
-      grid[i].value = count;
-      cell.innerText = count;
-      count++;
-    }
-  } else {
-    if (grid[i].value && !grid[i].marked) {
-      grid[i].marked = true;
-      cell.classList.add("marked");
-      checkLines();
-    }
+    gridData.push({ value: null, marked: false });
   }
 }
 
 function startGame() {
-  if (count <= 25) {
-    alert("Fill all numbers first");
-    return;
-  }
+  if (count <= 25) return alert("Fill 1-25 first");
   started = true;
+  document.getElementById("startBtn").style.display = "none";
 }
 
-function checkLines() {
-  const patterns = [
+function checkBingo() {
+  const p = [
     [0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],
     [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
     [0,6,12,18,24],[4,8,12,16,20]
   ];
-
-  patterns.forEach((p, index) => {
-    if (p.every(i => grid[i].marked) && !completedLines.has(index)) {
-      completedLines.add(index);
+  p.forEach((line, i) => {
+    if (line.every(idx => gridData[idx].marked) && !completedLines.has(i)) {
+      completedLines.add(i);
       lines++;
-      updateMango();
+      updateMangoUI();
     }
   });
 }
 
-function updateMango() {
+function updateMangoUI() {
   const word = "MANGO";
-  let result = "";
-
+  let html = "";
   for (let i = 0; i < 5; i++) {
-    if (i < lines) result += `<span class='crossed'>${word[i]}</span>`;
-    else result += word[i];
+    html += `<span class="${i < lines ? 'crossed' : ''}">${word[i]}</span>`;
   }
-
-  document.getElementById("mangoWord").innerHTML = result;
+  document.getElementById("mangoWord").innerHTML = html;
+  if (lines >= 5) alert("🎉 MANGO! You Win!");
 }
 
-// ================= GUESS GAME =================
-function createRoom() {
-  room = document.getElementById("roomId").value;
-  socket.emit("createRoom", room);
-  initGuess();
-}
-
+// GUESS GAME LOGIC
 function joinRoom() {
   room = document.getElementById("roomId").value;
+  if (!room) return;
   socket.emit("joinRoom", room);
-  initGuess();
-}
-
-function initGuess() {
   document.getElementById("guessArea").classList.remove("hidden");
-  document.getElementById("status").innerText = "Connected to room: " + room;
+  document.getElementById("status").innerText = "Room: " + room;
 }
 
 function sendGuess() {
-  const guess = document.getElementById("guess").value;
-  socket.emit("guess", { roomId: room, guess });
-  log("You: " + guess);
+  const g = document.getElementById("guess").value;
+  socket.emit("guess", { roomId: room, guess: g });
+  log("Me: " + g);
 }
 
 function sendResult() {
-  const bulls = document.getElementById("bulls").value;
-  const cows = document.getElementById("cows").value;
-
-  socket.emit("result", { roomId: room, bulls, cows });
-  log("Result → Bulls: " + bulls + " Cows: " + cows);
+  const b = document.getElementById("bulls").value;
+  const c = document.getElementById("cows").value;
+  socket.emit("result", { roomId: room, bulls: b, cows: c });
+  log(`Sent: B${b} C${c}`);
 }
 
 socket.on("opponentGuess", (g) => log("Opponent: " + g));
-socket.on("guessResult", (r) => log(`Result → Bulls:${r.bulls} Cows:${r.cows}`));
+socket.on("guessResult", (r) => log(`Result: B${r.bulls} C${r.cows}`));
 
-function log(msg) {
-  document.getElementById("log").innerHTML += `<p>${msg}</p>`;
+function log(m) {
+  const l = document.getElementById("log");
+  l.innerHTML = `<p>• ${m}</p>` + l.innerHTML;
 }
-</script></body>
+</script>
+</body>
 </html>
