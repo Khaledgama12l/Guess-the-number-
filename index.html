@@ -37,7 +37,6 @@
 
 <div class="container">
     <div id="countdown" class="hidden"></div>
-
     <div id="homeView">
         <h2 style="margin: 40px 0;">🎮 Game Hub Pro</h2>
         <button onclick="switchView('mangoView')">🍉 Mango Game</button>
@@ -61,7 +60,7 @@
             <div id="guessSetup">
                 <div id="modeSelection">
                     <button class="btn-primary" onclick="setGuessMode('local')">اللعب محلي</button>
-                    <button class="btn-online" onclick="showOnlineOptions()">اللعب أونلاين</button>
+                    <button class="btn-online" onclick="setGuessMode('online')">اللعب أونلاين</button>
                 </div>
                 <div id="onlineOptions" class="hidden">
                     <button class="btn-online" onclick="hostRoom()">إنشاء غرفة (Host)</button>
@@ -120,7 +119,6 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -149,11 +147,14 @@
         document.getElementById('mangoWord').innerHTML = res;
     }
 
-    // --- Guess Logic ---
     function setGuessMode(m) {
         document.getElementById('modeSelection').classList.add('hidden');
-        document.getElementById(m + 'Setup').classList.remove('hidden');
         isOnline = (m === 'online');
+        if(isOnline) {
+            showOnlineOptions();
+        } else {
+            document.getElementById('localSetup').classList.remove('hidden');
+        }
     }
     function showOnlineOptions() {
         document.querySelectorAll('#modeSelection, #joinInput, #onlineOptions, #localSetup').forEach(e => e.classList.add('hidden'));
@@ -164,7 +165,7 @@
         document.getElementById('joinInput').classList.remove('hidden');
     }
     function backToMode() {
-        document.querySelectorAll('#localSetup, #onlineOptions, #joinInput').forEach(e => e.classList.add('hidden'));
+        document.querySelectorAll('#localSetup, #onlineOptions, #joinInput, #secretInputArea').forEach(e => e.classList.add('hidden'));
         document.getElementById('modeSelection').classList.remove('hidden');
     }
 
@@ -244,7 +245,7 @@
         const hostStarts = Math.random() < 0.5;
         turnStatus = hostStarts ? "GUESS" : "WAIT";
         startRetryInterval = setInterval(() => {
-            roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
+            if(!gameStarted) roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
         }, 1000);
     }
 
