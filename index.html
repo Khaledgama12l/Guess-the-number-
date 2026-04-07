@@ -31,12 +31,27 @@
         .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 250px; overflow-y: auto; border: 1px solid #334155; }
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
+        
+        /* Win Overlay */
+        #winOverlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .win-card { background: var(--card); padding: 40px; border-radius: 32px; border: 2px solid var(--accent); box-shadow: 0 0 50px rgba(34, 197, 94, 0.3); width: 100%; max-width: 400px; }
+        .win-icon { font-size: 5rem; margin-bottom: 10px; display: block; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="countdown" class="hidden"></div>
+    
+    <div id="winOverlay" class="hidden">
+        <div class="win-card">
+            <span class="win-icon">🏆</span>
+            <h1 id="winTitle" style="color: var(--accent);">مبروك!</h1>
+            <p id="winMessage" style="font-size: 1.2rem; margin-bottom: 30px;"></p>
+            <button onclick="location.reload()" class="btn-primary">لعب مرة أخرى</button>
+        </div>
+    </div>
+
     <div id="homeView">
         <h2 style="margin: 40px 0;">🎮 Game Hub Pro</h2>
         <button onclick="switchView('mangoView')">🍉 Mango Game</button>
@@ -110,7 +125,6 @@
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1cWdrZmZnbWlxYmRtdHNueHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDU3MzIsImV4cCI6MjA5MTA4MTczMn0.Oe8L89X0dPJXd5oY0vS5KtlNejx5OAL4T2iKTrsPnNM';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // معرف فريد لكل لاعب لمنع تكرار الأدوار
     const myClientId = Math.random().toString(36).substring(7);
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
     let turnStatus = "WAIT", currentPendingGuess = null, isOnline = false, gameStarted = false;
@@ -200,22 +214,15 @@
     function setupConn(code) {
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
-            .on('broadcast', { event: 'ready' }, (p) => { 
+            .on('broadcast', { event: 'ready' }, () => { 
                 opReady = true; 
                 if (isHost && meReady) attemptStartGame();
             })
             .on('broadcast', { event: 'start_signal' }, (p) => { 
                 if (gameStarted) return;
-                
-                // تحديد الدور بناءً على قيمة hostStarts المرسلة من الهوست
                 const hostStarts = p.payload.hostStarts;
-                
-                if (isHost) {
-                    turnStatus = hostStarts ? "GUESS" : "WAIT";
-                } else {
-                    turnStatus = hostStarts ? "WAIT" : "GUESS";
-                }
-                
+                if (isHost) turnStatus = hostStarts ? "GUESS" : "WAIT";
+                else turnStatus = hostStarts ? "WAIT" : "GUESS";
                 roomChannel.send({ type: 'broadcast', event: 'start_ack' });
                 runCountdown(); 
             })
@@ -232,6 +239,7 @@
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
                 addLog(p.payload.g, p.payload.r, "الخصم");
+                checkWin(p.payload.r, "ME");
                 turnStatus = "WAIT"; 
                 updateUI();
             })
@@ -252,16 +260,9 @@
 
     function attemptStartGame() {
         if (gameStarted) return;
-        // الهوست يقرر عشوائياً مرة واحدة فقط
         const hostStarts = Math.random() < 0.5;
         startRetryInterval = setInterval(() => {
-            if(!gameStarted) {
-                roomChannel.send({ 
-                    type: 'broadcast', 
-                    event: 'start_signal', 
-                    payload: { hostStarts: hostStarts } 
-                });
-            }
+            if(!gameStarted) roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts: hostStarts } });
         }, 800);
     }
 
@@ -322,9 +323,11 @@
             return;
         }
         if (turnStatus === "REPLY") {
-            const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+            const s1 = document.getElementById('s1').innerText;
+            const r = `${s1}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
+            checkWin(r, "OP"); // الخصم فاز إذا كانت إجابته صحيحة
             currentPendingGuess = null;
             turnStatus = "GUESS"; 
             updateUI();
@@ -338,11 +341,34 @@
         resetInputs();
     }
 
+    function checkWin(resStr, player) {
+        // إذا كان عدد الـ ✅ يساوي طول الرقم السري (نفترض 4 أرقام)
+        const correctCount = parseInt(resStr.split('✅')[0]);
+        const secretLen = mySecret.length || 4;
+
+        if (correctCount === secretLen) {
+            const overlay = document.getElementById('winOverlay');
+            const title = document.getElementById('winTitle');
+            const msg = document.getElementById('winMessage');
+            
+            overlay.classList.remove('hidden');
+            if (player === "ME") {
+                title.innerText = "انتصار ساحق! 🔥";
+                msg.innerText = "لقد كشفت رقم الخصم بنجاح.";
+            } else {
+                title.innerText = "هارد لك! 💀";
+                title.style.color = "#ef4444";
+                msg.innerText = "الخصم كشف رقمك السري أولاً.";
+            }
+        }
+    }
+
     function saveLocalLog() {
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
         const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
         addLog(g, r, "أنا");
+        checkWin(r, "ME");
         resetInputs();
     }
 
