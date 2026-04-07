@@ -86,15 +86,44 @@ if ('serviceWorker' in navigator) {
     </div>
 
     <div id="mangoView" class="hidden">
-        <div class="card">
-            <h3>🍉 Mango Game</h3>
-            <button onclick="initMango()">جدول جديد</button>
-            <button id="mangoStartBtn" class="btn-alt hidden" onclick="startMangoMode()">ابدأ اللعب</button>
-            <div id="grid"></div>
-            <div id="mangoWord"></div>
-            <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
+    <div class="card">
+        <h3>🍉 Mango Online</h3>
+        
+        <div id="mangoSetup">
+            <button class="btn-online" onclick="hostMango()">إنشاء غرفة (Host)</button>
+            <div id="mangoHostOptions" class="hidden" style="margin-top:10px; background:#0f172a; padding:10px; border-radius:15px;">
+                <label style="font-size:0.8rem; color:#94a3b8">حدد عدد اللاعبين:</label>
+                <div style="display:flex; gap:5px; margin-top:5px">
+                    <button onclick="setMangoPlayers(2)" class="btn-alt" style="padding:10px">2</button>
+                    <button onclick="setMangoPlayers(3)" class="btn-alt" style="padding:10px">3</button>
+                    <button onclick="setMangoPlayers(4)" class="btn-alt" style="padding:10px">4</button>
+                </div>
+            </div>
+            
+            <button class="btn-primary" onclick="document.getElementById('mangoJoinInput').classList.toggle('hidden')">دخول غرفة (Join)</button>
+            <div id="mangoJoinInput" class="hidden" style="margin-top:10px">
+                <input type="number" id="mangoRoomID" placeholder="كود الغرفة">
+                <button onclick="joinMango()">انضمام الآن</button>
+            </div>
         </div>
+
+        <div id="mangoPlay" class="hidden">
+            <div id="mangoRoomInfo" style="color:var(--secondary); font-weight:bold; margin-bottom:10px"></div>
+            <div id="mangoPlayersStatus" style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px"></div>
+            
+            <div id="grid"></div>
+            <div id="mangoWord" style="margin-top:10px"></div>
+            
+            <div id="mangoActions" style="margin-top:15px">
+                <p id="mangoTurnHint" style="font-weight:bold; color:var(--accent)"></p>
+                <button id="mangoReadyBtn" onclick="mangoReady()">أنا جاهز (تم ملء الجدول)</button>
+            </div>
+        </div>
+
+        <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
     </div>
+</div>
+
 
     <div id="guessView" class="hidden">
         <div class="card">
@@ -716,6 +745,82 @@ function resetBoardOnly() {
     renderXO();
     updateXOUI();
 }
+let mangoPlayers = [];
+let maxPlayers = 2;
+let myPlayerIdx = -1;
+let mangoRoomCode = "";
+let playersReady = 0;
+let currentTurnIdx = 0; // مين اللي عليه الدور يشطب رقم
+
+function hostMango() {
+    isHost = true;
+    mangoRoomCode = Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('mangoHostOptions').classList.remove('hidden');
+    initMangoOnline(mangoRoomCode);
+}
+
+function setMangoPlayers(num) {
+    maxPlayers = num;
+    document.getElementById('mangoHostOptions').classList.add('hidden');
+    alert(`تم تحديد الغرفة لـ ${num} لاعبين. بانتظار الباقي...`);
+    // إرسال تحديث للعدد المسموح به (اختياري لو حد دخل قبلك)
+}
+
+function joinMango() {
+    isHost = false;
+    mangoRoomCode = document.getElementById('mangoRoomID').value;
+    if(mangoRoomCode) initMangoOnline(mangoRoomCode);
+}
+
+function initMangoOnline(code) {
+    cleanupConnection();
+    roomChannel = supabaseClient.channel(`mango_${code}`, { config: { broadcast: { self: true } } });
+
+    roomChannel
+        .on('broadcast', { event: 'player_info' }, (p) => {
+            // استقبال بيانات اللاعبين الجدد
+            if(isHost && mangoPlayers.length < maxPlayers) {
+                // الهوست يوزع المهام
+            }
+        })
+        .on('broadcast', { event: 'mark_number' }, (p) => {
+            // لما لاعب يشطب رقم، يتشطب عند الكل
+            markNumberLocally(p.payload.num);
+            nextTurn();
+        })
+        .subscribe();
+
+    document.getElementById('mangoSetup').classList.add('hidden');
+    document.getElementById('mangoPlay').classList.remove('hidden');
+    document.getElementById('mangoRoomInfo').innerText = "كود الغرفة: " + code;
+    initMangoGrid(); // دالة إنشاء الجدول (القديمة)
+}
+
+function markNumberLocally(num) {
+    // نبحث عن الخلية اللي فيها الرقم ده ونشطبها
+    mData.forEach((item, idx) => {
+        if(item.v == num) {
+            item.m = true;
+            document.querySelectorAll('#grid .cell')[idx].classList.add('marked');
+        }
+    });
+    checkM(); // فحص كلمة MANGO
+}
+
+function nextTurn() {
+    currentTurnIdx = (currentTurnIdx + 1) % maxPlayers;
+    updateMangoUI();
+}
+
+function updateMangoUI() {
+    const hint = document.getElementById('mangoTurnHint');
+    if(currentTurnIdx === myPlayerIdx) {
+        hint.innerText = "⭐ دورك الآن! اختر رقماً";
+    } else {
+        hint.innerText = `⌛ انتظار اللاعب رقم ${currentTurnIdx + 1}...`;
+    }
+}
+
 </script>
 </body>
 </html>
