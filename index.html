@@ -159,9 +159,28 @@
     let opponentSecret = "";
 
     function switchView(v) {
-        document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
-        document.getElementById(v).classList.remove('hidden');
+    // إخفاء كل العناصر اللي عندها ID وينتهي بـ View
+    const views = ['homeView', 'mangoView', 'guessView', 'xoView'];
+    views.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    // إظهار الواجهة المطلوبة فقط
+    const target = document.getElementById(v);
+    if (target) {
+        target.classList.remove('hidden');
     }
+
+    // لو رجعنا للرئيسية، نفصل القنوات المفتوحة عشان نوفر رامات وباندويث
+    if (v === 'homeView') {
+        cleanupConnection();
+        // إعادة تعيين متغيرات اللعب
+        gameStarted = false;
+        xoActive = false;
+    }
+}
+
 
     // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
