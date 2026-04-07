@@ -5,6 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Game Hub Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5260/5260478.png">
+
+<script>
+// 1. توليد الـ Manifest ديناميكياً بدون ملف خارجي
+const manifest = {
+    "name": "Game Hub Pro",
+    "short_name": "GameHub",
+    "start_url": window.location.href,
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#3b82f6",
+    "icons": [{
+        "src": "https://cdn-icons-png.flaticon.com/512/5260/5260478.png",
+        "sizes": "512x512",
+        "type": "image/png"
+    }]
+};
+const stringManifest = JSON.stringify(manifest);
+const blob = new Blob([stringManifest], {type: 'application/json'});
+const manifestURL = URL.createObjectURL(blob);
+const link = document.createElement('link');
+link.rel = 'manifest';
+link.href = manifestURL;
+document.head.appendChild(link);
+
+// 2. تسجيل Service Worker وهمي لإقناع المتصفح بالتثبيت
+if ('serviceWorker' in navigator) {
+    const swCode = `self.addEventListener('fetch', function(e) { e.respondWith(fetch(e.request)); });`;
+    const swBlob = new Blob([swCode], {type: 'text/javascript'});
+    const swURL = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL);
+}
+</script>
+
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --accent: #22c55e; --text: #f8fafc; --primary: #3b82f6; --secondary: #8b5cf6; }
         body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
