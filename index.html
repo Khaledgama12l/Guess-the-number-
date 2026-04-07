@@ -208,54 +208,46 @@
     }
 
     function setupConn(code) {
-    roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
-    roomChannel
-        .on('broadcast', { event: 'ready' }, (p) => { 
-            opReady = true; 
-            if (isHost && meReady) attemptStartGame();
-        })
-        .on('broadcast', { event: 'start_signal' }, (p) => { 
-            // إرسال تأكيد الاستلام فوراً
-            roomChannel.send({ type: 'broadcast', event: 'start_ack' });
-            
-            if (gameStarted) return;
-            
-            const hostStarts = p.payload.hostStarts;
-            
-            // تحديد الدور: لو أنا الهوست وهستبدأ يبقى GUESS، لو أنا الضيف والهوست هيبدأ يبقى WAIT
-            if (isHost) {
-                turnStatus = hostStarts ? "GUESS" : "WAIT";
-            } else {
-                turnStatus = hostStarts ? "WAIT" : "GUESS";
-            }
-            
-            runCountdown(); 
-        })
-        .on('broadcast', { event: 'start_ack' }, () => {
-            if (isHost && !gameStarted) {
-                clearInterval(startRetryInterval);
-                // الهوست لا يحتاج لانتظار الإشارة لأنه هو من أرسلها، يبدأ العد التنازلي
-                runCountdown();
-            }
-        })
-        .on('broadcast', { event: 'guess_sent' }, (p) => {
-            currentPendingGuess = p.payload.g;
-            turnStatus = "REPLY"; 
-            updateUI();
-        })
-        .on('broadcast', { event: 'reply_sent' }, (p) => {
-            addLog(p.payload.g, p.payload.r, "ME"); 
-            if (p.payload.r.startsWith("3✅")) {
-                setTimeout(() => { alert("🏆 مبروك! فزت بالجيم"); location.reload(); }, 500);
-                return;
-            }
-            turnStatus = "WAIT"; 
-            updateUI();
-        })
-        .subscribe((s) => {
-            if(s === 'SUBSCRIBED') document.getElementById('waitMsg').innerText = "متصل ✅";
-        });
-}
+        roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
+        roomChannel
+            .on('broadcast', { event: 'ready' }, (p) => { 
+                opReady = true; 
+                if (isHost && meReady) attemptStartGame();
+            })
+            .on('broadcast', { event: 'start_signal' }, (p) => { 
+                roomChannel.send({ type: 'broadcast', event: 'start_ack' });
+                if (gameStarted) return;
+                const hostStarts = p.payload.hostStarts;
+                if (isHost) { turnStatus = hostStarts ? "GUESS" : "WAIT"; } 
+                else { turnStatus = hostStarts ? "WAIT" : "GUESS"; }
+                runCountdown(); 
+            })
+            .on('broadcast', { event: 'start_ack' }, () => {
+                if (isHost && !gameStarted) {
+                    clearInterval(startRetryInterval);
+                    runCountdown();
+                }
+            })
+            .on('broadcast', { event: 'guess_sent' }, (p) => {
+                currentPendingGuess = p.payload.g;
+                turnStatus = "REPLY"; 
+                updateUI();
+            })
+            .on('broadcast', { event: 'reply_sent' }, (p) => {
+                addLog(p.payload.g, p.payload.r, "ME"); 
+                // التحقق إذا كان تخميني أنا (ME) قد نجح
+                if (p.payload.r.includes("3✅")) {
+                    showResult(true);
+                    return;
+                }
+                turnStatus = "WAIT"; 
+                updateUI();
+            })
+            .subscribe((s) => {
+                if(s === 'SUBSCRIBED') document.getElementById('waitMsg').innerText = "متصل ✅";
+            });
+    }
+
     function sendReady() {
         mySecret = document.getElementById('onlineSecretInput').value;
         if(!mySecret) return;
@@ -267,22 +259,19 @@
     }
 
     function attemptStartGame() {
-    if (gameStarted) return;
-    const hostStarts = Math.random() < 0.5;
-    
-    // ضبط حالة الهوست محلياً قبل الدخول في الـ Interval
-    turnStatus = hostStarts ? "GUESS" : "WAIT";
-
-    startRetryInterval = setInterval(() => {
-        if(!gameStarted) {
-            roomChannel.send({ 
-                type: 'broadcast', 
-                event: 'start_signal', 
-                payload: { hostStarts: hostStarts } 
-            });
-        }
-    }, 800);
-}
+        if (gameStarted) return;
+        const hostStarts = Math.random() < 0.5;
+        turnStatus = hostStarts ? "GUESS" : "WAIT";
+        startRetryInterval = setInterval(() => {
+            if(!gameStarted) {
+                roomChannel.send({ 
+                    type: 'broadcast', 
+                    event: 'start_signal', 
+                    payload: { hostStarts: hostStarts } 
+                });
+            }
+        }, 800);
+    }
 
     function runCountdown() {
         if (gameStarted) return;
@@ -332,38 +321,39 @@
     }
 
     function handleAction() {
-    if (!isOnline) { saveLocalLog(); return; }
-    if (turnStatus === "REPLY") {
-        const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-        roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
-        addLog(currentPendingGuess, r, "OP");
-        
-        if (r.startsWith("3✅")) {
-            showResult(false); // هيظهر واجهة الخسارة والزرار اللي جواها هو اللي بيعمل ريفرش
-            return;
+        if (!isOnline) { saveLocalLog(); return; }
+        if (turnStatus === "REPLY") {
+            const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+            roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
+            addLog(currentPendingGuess, r, "OP");
+            
+            // إذا كان الخصم (OP) هو من خمن صح
+            if (r.includes("3✅")) {
+                showResult(false, "للأسف، الخصم كشف رقمك السري!"); 
+                return;
+            }
+            currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
+            resetInputs();
+        } else if (turnStatus === "GUESS") {
+            const g = document.getElementById('currentGuess').value;
+            if(!g) return;
+            roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
+            turnStatus = "WAIT"; updateUI();
+            resetInputs();
         }
-        currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
-    } else if (turnStatus === "GUESS") {
+    }
+
+    function saveLocalLog() {
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
-        roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-        turnStatus = "WAIT"; updateUI();
+        const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+        addLog(g, r, "ME");
+        
+        if(r.includes("3✅")) { 
+            showResult(true); 
+        }
+        resetInputs();
     }
-    resetInputs();
-}
-
-function saveLocalLog() {
-    const g = document.getElementById('currentGuess').value;
-    if(!g) return;
-    const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-    addLog(g, r, "ME");
-    
-    if(r.startsWith("3✅")) { 
-        showResult(true); // هيظهر واجهة الفوز
-    }
-    resetInputs();
-}
-
 
     function resetInputs() {
         document.getElementById('currentGuess').value = '';
@@ -404,6 +394,7 @@ function saveLocalLog() {
 </style>
 
 <script>
+    
 // وظيفة لإظهار واجهة الفوز أو الخسارة برمجياً
 function showResult(isWin, message = "") {
     const overlay = document.getElementById('finishOverlay');
