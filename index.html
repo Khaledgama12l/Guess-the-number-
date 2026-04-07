@@ -87,42 +87,52 @@ if ('serviceWorker' in navigator) {
 
     <div id="mangoView" class="hidden">
     <div class="card">
-        <h3>🍉 Mango Online</h3>
+        <h3>🍉 Mango Game</h3>
         
-        <div id="mangoSetup">
-            <button class="btn-online" onclick="hostMango()">إنشاء غرفة (Host)</button>
-            <div id="mangoHostOptions" class="hidden" style="margin-top:10px; background:#0f172a; padding:10px; border-radius:15px;">
-                <label style="font-size:0.8rem; color:#94a3b8">حدد عدد اللاعبين:</label>
-                <div style="display:flex; gap:5px; margin-top:5px">
-                    <button onclick="setMangoPlayers(2)" class="btn-alt" style="padding:10px">2</button>
-                    <button onclick="setMangoPlayers(3)" class="btn-alt" style="padding:10px">3</button>
-                    <button onclick="setMangoPlayers(4)" class="btn-alt" style="padding:10px">4</button>
+        <div id="mangoModeSelect">
+            <button class="btn-primary" onclick="startMangoLocal()">اللعب محلي (سريع)</button>
+            <button class="btn-online" onclick="showMangoOnlineSetup()">اللعب أونلاين (حتى 4 لاعبين)</button>
+        </div>
+
+        <div id="mangoOnlineSetup" class="hidden">
+            <div id="mangoEntryActions">
+                <button class="btn-online" onclick="hostMango()">إنشاء غرفة (Host)</button>
+                <div id="mangoHostOptions" class="hidden" style="margin:10px 0; background:#0f172a; padding:15px; border-radius:15px; border:1px solid var(--secondary);">
+                    <label style="display:block; margin-bottom:10px; font-size:0.9rem;">عدد اللاعبين المطلوب:</label>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                        <button class="btn-alt" style="margin:0" onclick="setMaxPlayers(2)">2</button>
+                        <button class="btn-alt" style="margin:0" onclick="setMaxPlayers(3)">3</button>
+                        <button class="btn-alt" style="margin:0" onclick="setMaxPlayers(4)">4</button>
+                    </div>
                 </div>
-            </div>
-            
-            <button class="btn-primary" onclick="document.getElementById('mangoJoinInput').classList.toggle('hidden')">دخول غرفة (Join)</button>
-            <div id="mangoJoinInput" class="hidden" style="margin-top:10px">
-                <input type="number" id="mangoRoomID" placeholder="كود الغرفة">
-                <button onclick="joinMango()">انضمام الآن</button>
+                <button class="btn-primary" onclick="document.getElementById('mangoJoinBox').classList.toggle('hidden')">انضمام لغرفة</button>
+                <div id="mangoJoinBox" class="hidden">
+                    <input type="number" id="mRoomID" placeholder="كود الغرفة">
+                    <button onclick="joinMango()">دخول</button>
+                </div>
+                <button class="btn-alt" onclick="backToMangoMode()">رجوع</button>
             </div>
         </div>
 
-        <div id="mangoPlay" class="hidden">
-            <div id="mangoRoomInfo" style="color:var(--secondary); font-weight:bold; margin-bottom:10px"></div>
-            <div id="mangoPlayersStatus" style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px"></div>
+        <div id="mangoPlayArea" class="hidden">
+            <div id="mOnlineHeader" class="hidden" style="margin-bottom:10px;">
+                <div id="mRoomCodeDisp" style="color:var(--secondary); font-weight:bold;"></div>
+                <div id="mPlayersCount" style="font-size:0.8rem; opacity:0.7;">بانتظار اللاعبين...</div>
+            </div>
+            
+            <button id="mNewGridBtn" onclick="initMango()">جدول جديد</button>
+            <button id="mangoStartBtn" class="btn-alt hidden" onclick="confirmMangoReady()">أنا جاهز (ابدأ)</button>
             
             <div id="grid"></div>
-            <div id="mangoWord" style="margin-top:10px"></div>
+            <div id="mangoWord"></div>
             
-            <div id="mangoActions" style="margin-top:15px">
-                <p id="mangoTurnHint" style="font-weight:bold; color:var(--accent)"></p>
-                <button id="mangoReadyBtn" onclick="mangoReady()">أنا جاهز (تم ملء الجدول)</button>
-            </div>
+            <div id="mTurnDisp" class="hidden" style="margin-top:15px; padding:10px; border-radius:10px; background:#0f172a; color:var(--accent); font-weight:bold;"></div>
         </div>
 
         <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:20px">الرئيسية</button>
     </div>
 </div>
+
 
 
     <div id="guessView" class="hidden">
