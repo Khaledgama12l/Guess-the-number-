@@ -31,6 +31,9 @@
         .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 5px; height: 200px; overflow-y: auto; border: 1px solid #334155; }
         .log-entry { border-bottom: 1px solid #1e293b; padding: 8px 0; display: flex; flex-direction: column; align-items: flex-start; text-align: right; }
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
+        .xo-cell { aspect-ratio: 1/1; background: #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold; cursor: pointer; }
+.xo-cell.taken { cursor: not-allowed; }
+
     </style>
 </head>
 <body>
@@ -41,6 +44,7 @@
         <h2 style="margin: 40px 0;">🎮 Game Hub Pro</h2>
         <button onclick="switchView('mangoView')">🍉 Mango Game</button>
         <button onclick="switchView('guessView')" class="btn-primary">🔢 Guess Number</button>
+        <button onclick="switchView('xoView')" class="btn-online">❌ Tic-Tac-Toe ⭕</button> </div>
     </div>
 
     <div id="mangoView" class="hidden">
@@ -114,6 +118,33 @@
             <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:10px">الرئيسية</button>
         </div>
     </div>
+    <div id="xoView" class="hidden">
+    <div class="card">
+        <h3>❌ Tic-Tac-Toe ⭕</h3>
+        <div id="xoSetup">
+            <button class="btn-online" onclick="hostXORoom()">إنشاء غرفة (Host)</button>
+            <button class="btn-primary" onclick="showXOJoin()">دخول غرفة (Join)</button>
+            <div id="xoJoinInput" class="hidden" style="margin-top:10px">
+                <input type="number" id="xoRoomID" placeholder="كود الغرفة">
+                <button onclick="joinXORoom()">انضمام</button>
+            </div>
+        </div>
+
+        <div id="xoPlay" class="hidden">
+    <div id="xoRoomDisplay" style="color:var(--secondary); font-weight:bold; margin-bottom:5px"></div>
+    <div style="display: flex; justify-content: space-around; background: #0f172a; padding: 10px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #334155;">
+        <div><small>أنت</small><div id="myScore" style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">0</div></div>
+        <div style="align-self: center; opacity: 0.5;">VS</div>
+        <div><small>الخصم</small><div id="opScore" style="font-size: 1.5rem; font-weight: bold; color: var(--secondary);">0</div></div>
+    </div>
+    
+    <div id="xoTurnIndicator" style="margin-bottom:10px; font-weight:bold">بانتظار الخصم...</div>
+    <div id="xoGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; max-width:300px; margin:auto"></div>
+    <button style="background:#ef4444; margin-top:20px" onclick="location.reload()">خروج من الغرفة</button>
+</div>
+        <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:10px">الرئيسية</button>
+    </div>
+</div>
 </div>
 
 <script>
@@ -487,6 +518,147 @@ function showResult(isWin, message = "") {
 
 // وبدلاً من alert("💀 للأسف، الخصم فاز!"); استبدلها بـ:
 // showResult(false);
+
+
+// --- X-O Pro Logic ---
+let xoBoard = Array(9).fill(null);
+let mySymbol = ""; 
+let xoTurn = "X";   // مين عليه الدور حالياً
+let starter = "X";  // مين اللي بدأ الجيم الحالي
+let myScore = 0, opScore = 0;
+let xoActive = false;
+
+function showXOJoin() { document.getElementById('xoJoinInput').classList.toggle('hidden'); }
+
+function hostXORoom() {
+    isHost = true; mySymbol = "X";
+    const code = Math.floor(1000 + Math.random() * 9000);
+    initXOConn(code);
+}
+
+function joinXORoom() {
+    isHost = false; mySymbol = "O";
+    const code = document.getElementById('xoRoomID').value;
+    if(!code) return;
+    initXOConn(code);
+}
+
+function initXOConn(code) {
+    cleanupConnection();
+    roomChannel = supabaseClient.channel(`xo_${code}`, { config: { broadcast: { self: false } } });
+    
+    roomChannel
+        .on('broadcast', { event: 'player_joined' }, () => {
+            if(isHost) {
+                roomChannel.send({ type: 'broadcast', event: 'sync_start', payload: { starter: starter } });
+                startGameXO();
+            }
+        })
+        .on('broadcast', { event: 'sync_start' }, (p) => { 
+            if(!isHost) {
+                starter = p.payload.starter;
+                startGameXO();
+            }
+        })
+        .on('broadcast', { event: 'move' }, (p) => { applyMove(p.payload.idx, p.payload.symbol); })
+        .on('broadcast', { event: 'reset_game' }, (p) => { 
+            starter = p.payload.nextStarter;
+            resetBoardOnly(); 
+        })
+        .subscribe((s) => {
+            if(s === 'SUBSCRIBED') {
+                document.getElementById('xoRoomDisplay').innerText = "كود الغرفة: " + code;
+                if(!isHost) roomChannel.send({ type: 'broadcast', event: 'player_joined' });
+            }
+        });
+    
+    document.getElementById('xoSetup').classList.add('hidden');
+    document.getElementById('xoPlay').classList.remove('hidden');
+    renderXO();
+}
+
+function startGameXO() {
+    xoActive = true;
+    xoTurn = starter; // الجيم يبدأ باللي عليه الدور في البداية
+    updateXOUI();
+}
+
+function renderXO() {
+    const g = document.getElementById('xoGrid'); g.innerHTML = '';
+    xoBoard.forEach((val, idx) => {
+        const c = document.createElement('div');
+        c.className = 'xo-cell' + (val ? ' taken' : '');
+        c.style.color = val === "X" ? "var(--primary)" : "var(--secondary)";
+        c.innerText = val || '';
+        c.onclick = () => makeMove(idx);
+        g.appendChild(c);
+    });
+}
+
+function makeMove(idx) {
+    if(!xoActive || xoBoard[idx] || xoTurn !== mySymbol) return;
+    applyMove(idx, mySymbol);
+    roomChannel.send({ type: 'broadcast', event: 'move', payload: { idx, symbol: mySymbol } });
+}
+
+function applyMove(idx, symbol) {
+    xoBoard[idx] = symbol;
+    xoTurn = (symbol === "X") ? "O" : "X";
+    renderXO();
+    checkXOWinner();
+    if(xoActive) updateXOUI();
+}
+
+function updateXOUI() {
+    const ind = document.getElementById('xoTurnIndicator');
+    if(xoTurn === mySymbol) {
+        ind.innerText = "🟢 دورك الآن (" + mySymbol + ")";
+        ind.style.color = "var(--accent)";
+    } else {
+        ind.innerText = "⌛ دور الخصم...";
+        ind.style.color = "#94a3b8";
+    }
+}
+
+function checkXOWinner() {
+    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    let winner = null;
+
+    for (let p of wins) {
+        if(xoBoard[p[0]] && xoBoard[p[0]] === xoBoard[p[1]] && xoBoard[p[0]] === xoBoard[p[2]]) {
+            winner = xoBoard[p[0]];
+            break;
+        }
+    }
+
+    if(winner || !xoBoard.includes(null)) {
+        xoActive = false;
+        if(winner) {
+            if(winner === mySymbol) { myScore++; document.getElementById('myScore').innerText = myScore; }
+            else { opScore++; document.getElementById('opScore').innerText = opScore; }
+        }
+        
+        // تجهيز الجيم القادم: تبادل البادئ
+        let nextStarter = (starter === "X") ? "O" : "X";
+        
+        setTimeout(() => {
+            alert(winner ? (winner === mySymbol ? "🎉 فزت بالجولة!" : "💀 الخصم فاز بالجولة!") : "🤝 تعادل!");
+            if(isHost) {
+                starter = nextStarter;
+                roomChannel.send({ type: 'broadcast', event: 'reset_game', payload: { nextStarter: nextStarter } });
+                resetBoardOnly();
+            }
+        }, 500);
+    }
+}
+
+function resetBoardOnly() {
+    xoBoard = Array(9).fill(null);
+    xoActive = true;
+    xoTurn = starter; 
+    renderXO();
+    updateXOUI();
+}
 </script>
 </body>
 </html>
