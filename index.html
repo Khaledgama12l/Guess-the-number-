@@ -110,6 +110,8 @@
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1cWdrZmZnbWlxYmRtdHNueHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDU3MzIsImV4cCI6MjA5MTA4MTczMn0.Oe8L89X0dPJXd5oY0vS5KtlNejx5OAL4T2iKTrsPnNM';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
+    // معرف فريد لكل لاعب لمنع تكرار الأدوار
+    const myClientId = Math.random().toString(36).substring(7);
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
     let turnStatus = "WAIT", currentPendingGuess = null, isOnline = false, gameStarted = false;
     let startRetryInterval = null;
@@ -119,7 +121,7 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic ---
+    // --- Mango Logic (Same) ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -198,19 +200,23 @@
     function setupConn(code) {
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
-            .on('broadcast', { event: 'ready' }, () => { 
+            .on('broadcast', { event: 'ready' }, (p) => { 
                 opReady = true; 
                 if (isHost && meReady) attemptStartGame();
             })
             .on('broadcast', { event: 'start_signal' }, (p) => { 
                 if (gameStarted) return;
+                
+                // تحديد الدور بناءً على قيمة hostStarts المرسلة من الهوست
                 const hostStarts = p.payload.hostStarts;
+                
                 if (isHost) {
                     turnStatus = hostStarts ? "GUESS" : "WAIT";
                 } else {
                     turnStatus = hostStarts ? "WAIT" : "GUESS";
                 }
-                roomChannel.send({ type: 'broadcast', event: 'start_ack', payload: {} });
+                
+                roomChannel.send({ type: 'broadcast', event: 'start_ack' });
                 runCountdown(); 
             })
             .on('broadcast', { event: 'start_ack' }, () => {
@@ -240,16 +246,23 @@
         meReady = true;
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "تمت الجاهزية.. بانتظار الخصم";
-        roomChannel.send({ type: 'broadcast', event: 'ready', payload: {} });
+        roomChannel.send({ type: 'broadcast', event: 'ready', payload: { id: myClientId } });
         if (isHost && opReady) attemptStartGame();
     }
 
     function attemptStartGame() {
         if (gameStarted) return;
+        // الهوست يقرر عشوائياً مرة واحدة فقط
         const hostStarts = Math.random() < 0.5;
         startRetryInterval = setInterval(() => {
-            if(!gameStarted) roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts: hostStarts } });
-        }, 1000);
+            if(!gameStarted) {
+                roomChannel.send({ 
+                    type: 'broadcast', 
+                    event: 'start_signal', 
+                    payload: { hostStarts: hostStarts } 
+                });
+            }
+        }, 800);
     }
 
     function runCountdown() {
@@ -294,7 +307,6 @@
                 input.disabled = false;
                 break;
             case "WAIT":
-            default:
                 ind.innerText = "⌛ بانتظار حركة الخصم...";
                 ind.style.color = "#94a3b8";
                 btn.innerText = "انتظر...";
