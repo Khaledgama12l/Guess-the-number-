@@ -10,7 +10,7 @@
         body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 500px; margin: auto; padding: 15px; padding-top: env(safe-area-inset-top); }
         .card { background: var(--card); padding: 20px; border-radius: 24px; margin-top: 15px; border: 1px solid #334155; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         button { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 14px; background: var(--accent); color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
         button:disabled { background: #475569; opacity: 0.6; cursor: not-allowed; }
         .btn-alt { background: #475569; }
@@ -32,9 +32,7 @@
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
         
-        /* Win View Styles */
         #winView { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .win-title { color: var(--accent); font-size: 3rem; margin: 10px 0; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
     </style>
 </head>
 <body>
@@ -43,8 +41,8 @@
     <div id="countdown" class="hidden"></div>
 
     <div id="winView" class="hidden">
-        <div class="win-icon" style="font-size: 5rem;">🏆</div>
-        <h1 class="win-title" id="winResultTitle">فوز!</h1>
+        <div style="font-size: 5rem;">🏆</div>
+        <h1 id="winResultTitle" style="font-size: 3rem; margin: 10px 0;">فوز!</h1>
         <p id="winResultMsg" style="font-size: 1.2rem; margin-bottom: 30px;"></p>
         <button onclick="location.reload()" style="max-width: 300px;">لعب مرة أخرى</button>
     </div>
@@ -132,7 +130,7 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic (Same) ---
+    // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -182,8 +180,9 @@
     }
 
     function startLocalGame() {
-        mySecret = document.getElementById('localSecret').value;
-        if(!mySecret) return;
+        const val = document.getElementById('localSecret').value;
+        if(!val) return;
+        mySecret = val;
         document.getElementById('displaySecret').innerText = mySecret;
         document.getElementById('guessSetup').classList.add('hidden');
         document.getElementById('guessPlay').classList.remove('hidden');
@@ -211,7 +210,7 @@
     function setupConn(code) {
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
-            .on('broadcast', { event: 'ready' }, (p) => { 
+            .on('broadcast', { event: 'ready' }, () => { 
                 opReady = true; 
                 if (isHost && meReady) attemptStartGame();
             })
@@ -236,7 +235,7 @@
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
                 addLog(p.payload.g, p.payload.r, "الخصم");
-                checkWin(p.payload.r, "ME"); // فوزي أنا
+                checkWin(p.payload.r, "ME"); 
                 turnStatus = "WAIT"; 
                 updateUI();
             })
@@ -246,12 +245,13 @@
     }
 
     function sendReady() {
-        mySecret = document.getElementById('onlineSecretInput').value;
-        if(!mySecret) return;
+        const val = document.getElementById('onlineSecretInput').value;
+        if(!val) return;
+        mySecret = val;
         meReady = true;
         document.getElementById('readyBtn').disabled = true;
         document.getElementById('waitMsg').innerText = "تمت الجاهزية.. بانتظار الخصم";
-        roomChannel.send({ type: 'broadcast', event: 'ready', payload: { id: myClientId } });
+        roomChannel.send({ type: 'broadcast', event: 'ready' });
         if (isHost && opReady) attemptStartGame();
     }
 
@@ -324,7 +324,7 @@
             const r = `${s1}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
-            checkWin(r, "OP"); // فوز الخصم
+            checkWin(r, "OP"); 
             currentPendingGuess = null;
             turnStatus = "GUESS"; 
             updateUI();
@@ -339,10 +339,11 @@
     }
 
     function checkWin(resStr, player) {
-        // فك تشفير عدد الـ ✅
+        // فحص عدد الصح من الاسترينج المرسل
         const correctCount = parseInt(resStr.split('✅')[0]);
-        // لا نتحقق إلا إذا كان هناك سر مدخل فعلياً وبعدد صحيح
-        if (mySecret && correctCount === mySecret.length && mySecret.length > 0) {
+        
+        // التأكد من أن اللعبة بدأت فعلياً وأن هناك سراً محدداً
+        if (mySecret && mySecret.length > 0 && correctCount === mySecret.length) {
             const winView = document.getElementById('winView');
             const winTitle = document.getElementById('winResultTitle');
             const winMsg = document.getElementById('winResultMsg');
