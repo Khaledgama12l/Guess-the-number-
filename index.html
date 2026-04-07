@@ -332,33 +332,38 @@
     }
 
     function handleAction() {
-        if (!isOnline) { saveLocalLog(); return; }
-        if (turnStatus === "REPLY") {
-            const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-            roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
-            addLog(currentPendingGuess, r, "OP");
-            if (r.startsWith("3✅")) {
-                setTimeout(() => { showResult(false); location.reload(); }, 500);
-                return;
-            }
-            currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
-        } else if (turnStatus === "GUESS") {
-            const g = document.getElementById('currentGuess').value;
-            if(!g) return;
-            roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            turnStatus = "WAIT"; updateUI();
+    if (!isOnline) { saveLocalLog(); return; }
+    if (turnStatus === "REPLY") {
+        const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+        roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
+        addLog(currentPendingGuess, r, "OP");
+        
+        if (r.startsWith("3✅")) {
+            showResult(false); // هيظهر واجهة الخسارة والزرار اللي جواها هو اللي بيعمل ريفرش
+            return;
         }
-        resetInputs();
-    }
-
-    function saveLocalLog() {
+        currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
+    } else if (turnStatus === "GUESS") {
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
-        const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-        addLog(g, r, "ME");
-        if(r.startsWith("3✅")) { showResult(true); location.reload(); }
-        resetInputs();
+        roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
+        turnStatus = "WAIT"; updateUI();
     }
+    resetInputs();
+}
+
+function saveLocalLog() {
+    const g = document.getElementById('currentGuess').value;
+    if(!g) return;
+    const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
+    addLog(g, r, "ME");
+    
+    if(r.startsWith("3✅")) { 
+        showResult(true); // هيظهر واجهة الفوز
+    }
+    resetInputs();
+}
+
 
     function resetInputs() {
         document.getElementById('currentGuess').value = '';
