@@ -152,11 +152,8 @@
     function setGuessMode(m) {
         document.getElementById('modeSelection').classList.add('hidden');
         isOnline = (m === 'online');
-        if(isOnline) {
-            showOnlineOptions();
-        } else {
-            document.getElementById('localSetup').classList.remove('hidden');
-        }
+        if(isOnline) showOnlineOptions();
+        else document.getElementById('localSetup').classList.remove('hidden');
     }
     function showOnlineOptions() {
         document.querySelectorAll('#modeSelection, #joinInput, #onlineOptions, #localSetup').forEach(e => e.classList.add('hidden'));
@@ -207,11 +204,11 @@
             })
             .on('broadcast', { event: 'start_signal' }, (p) => { 
                 if (gameStarted) return;
-                // Host يقرر البداية
+                const hostStarts = p.payload.hostStarts;
                 if (isHost) {
-                    turnStatus = p.payload.hostStarts ? "GUESS" : "WAIT";
+                    turnStatus = hostStarts ? "GUESS" : "WAIT";
                 } else {
-                    turnStatus = p.payload.hostStarts ? "WAIT" : "GUESS";
+                    turnStatus = hostStarts ? "WAIT" : "GUESS";
                 }
                 roomChannel.send({ type: 'broadcast', event: 'start_ack', payload: {} });
                 runCountdown(); 
@@ -229,7 +226,6 @@
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
                 addLog(p.payload.g, p.payload.r, "الخصم");
-                // بعد ما الخصم رد على تخميني، استنى الخصم هو اللي يخمن دلوقتى
                 turnStatus = "WAIT"; 
                 updateUI();
             })
@@ -252,7 +248,7 @@
         if (gameStarted) return;
         const hostStarts = Math.random() < 0.5;
         startRetryInterval = setInterval(() => {
-            if(!gameStarted) roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts } });
+            if(!gameStarted) roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts: hostStarts } });
         }, 1000);
     }
 
@@ -313,20 +309,17 @@
             saveLocalLog();
             return;
         }
-
         if (turnStatus === "REPLY") {
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
             currentPendingGuess = null;
-            // المنطق: بعد ما رديت على الخصم، دلوقتى دوري انا اخمن
             turnStatus = "GUESS"; 
             updateUI();
         } else if (turnStatus === "GUESS") {
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            // المنطق: بعد ما خمنت، استنى الخصم يرد عليا
             turnStatus = "WAIT"; 
             updateUI();
         }
