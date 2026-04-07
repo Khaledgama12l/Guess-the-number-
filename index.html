@@ -97,13 +97,7 @@ if ('serviceWorker' in navigator) {
         <div id="mangoOnlineSetup" class="hidden">
             <div id="mangoEntryActions">
                 <button class="btn-online" onclick="hostMango()">إنشاء غرفة (Host)</button>
-               <div id="mangoHostOptions" class="hidden" style="margin:10px 0; background:#0f172a; padding:15px; border-radius:15px; border:1px solid var(--secondary);">
-    <label style="display:block; margin-bottom:10px;">عدد اللاعبين:</label>
-    
-    <button onclick="setMaxPlayers(2)">2 لاعبين</button>
-    <button onclick="setMaxPlayers(3)">3 لاعبين</button>
-    <button onclick="setMaxPlayers(4)">4 لاعبين</button>
-</div>
+                <div id="mangoHostOptions" class="hidden" style="margin:10px 0; background:#0f172a; padding:15px; border-radius:15px; border:1px solid var(--secondary);">
                     <label style="display:block; margin-bottom:10px; font-size:0.9rem;">عدد اللاعبين المطلوب:</label>
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                         <button class="btn-alt" style="margin:0" onclick="setMaxPlayers(2)">2</button>
@@ -761,478 +755,226 @@ function resetBoardOnly() {
     renderXO();
     updateXOUI();
 }
-
-
-// ===== Mango Clean Online =====
-
-let mData = [];
-let mCount = 1;
-let mStarted = false;
-
-let mPlayers = [];
-let mMyIdx = -1;
-let mTurn = 0;
-let mMaxPlayers = 2;
-let mReady = 0;
-
-let mRoomCode = "";
-let mOnline = false;
-
-// ================= HOST =================
+let mangoPlayers = [];
+let maxPlayers = 2;
+let myPlayerIdx = -1;
+let mangoRoomCode = "";
+let playersReady = 0;
+let currentTurnIdx = 0; // مين اللي عليه الدور يشطب رقم
 
 function hostMango() {
     isHost = true;
-    mOnline = true;
-
-    mRoomCode = Math.floor(1000 + Math.random() * 9000);
-    document.getElementById("mangoHostOptions").classList.remove("hidden");
+    mangoRoomCode = Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('mangoHostOptions').classList.remove('hidden');
+    initMangoOnline(mangoRoomCode);
 }
 
-function confirmPlayers() {
-    mMaxPlayers = parseInt(document.getElementById("playersSelect").value);
-
-    document.getElementById("mangoHostOptions").classList.add("hidden");
-
-    initMangoConnection(mRoomCode);
+function setMangoPlayers(num) {
+    maxPlayers = num;
+    document.getElementById('mangoHostOptions').classList.add('hidden');
+    alert(`تم تحديد الغرفة لـ ${num} لاعبين. بانتظار الباقي...`);
+    // إرسال تحديث للعدد المسموح به (اختياري لو حد دخل قبلك)
 }
-
-// ================= JOIN =================
 
 function joinMango() {
     isHost = false;
-    mOnline = true;
-
-    const code = document.getElementById("mRoomID").value;
-    if (!code) return;
-
-    mRoomCode = code;
-    initMangoConnection(code);
+    mangoRoomCode = document.getElementById('mangoRoomID').value;
+    if(mangoRoomCode) initMangoOnline(mangoRoomCode);
 }
 
-// ================= CONNECTION =================
-
-function initMangoConnection(code) {
+function initMangoOnline(code) {
     cleanupConnection();
-
-    roomChannel = supabaseClient.channel(`mango_${code}`, {
-        config: { broadcast: { self: true } }
-    });
+    roomChannel = supabaseClient.channel(`mango_${code}`, { config: { broadcast: { self: true } } });
 
     roomChannel
-        .on('broadcast', { event: 'join' }, (p) => {
-            if (isHost) {
-                if (!mPlayers.includes(myClientId)) {
-                    mPlayers.push(myClientId);
-                }
-
-                if (!mPlayers.includes(p.payload.id)) {
-                    mPlayers.push(p.payload.id);
-                }
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'sync',
-                    payload: {
-                        players: mPlayers,
-                        max: mMaxPlayers
-                    }
-                });
+        .on('broadcast', { event: 'player_info' }, (p) => {
+            // استقبال بيانات اللاعبين الجدد
+            if(isHost && mangoPlayers.length < maxPlayers) {
+                // الهوست يوزع المهام
             }
         })
-
-        .on('broadcast', { event: 'sync' }, (p) => {
-            mPlayers = p.payload.players;
-            mMaxPlayers = p.payload.max;
-
-            mMyIdx = mPlayers.indexOf(myClientId);
-
-            updateLobby();
+        .on('broadcast', { event: 'mark_number' }, (p) => {
+            // لما لاعب يشطب رقم، يتشطب عند الكل
+            markNumberLocally(p.payload.num);
+            nextTurn();
         })
+        .subscribe();
 
-        .on('broadcast', { event: 'ready' }, () => {
-            mReady++;
-
-            if (mReady === mMaxPlayers) {
-                startGame();
-            }
-        })
-
-        .on('broadcast', { event: 'play' }, (p) => {
-            markNumber(p.payload.num);
-
-            mTurn = (mTurn + 1) % mMaxPlayers;
-            updateTurnUI();
-        })
-
-        .subscribe((s) => {
-            if (s === 'SUBSCRIBED') {
-                document.getElementById("mRoomCodeDisp").innerText = "كود الغرفة: " + code;
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'join',
-                    payload: { id: myClientId }
-                });
-            }
-        });
-
-    document.getElementById('mangoOnlineSetup').classList.add('hidden');
-    document.getElementById('mangoPlayArea').classList.remove('hidden');
-    document.getElementById('mOnlineHeader').classList.remove('hidden');
-
-    initMango();
+    document.getElementById('mangoSetup').classList.add('hidden');
+    document.getElementById('mangoPlay').classList.remove('hidden');
+    document.getElementById('mangoRoomInfo').innerText = "كود الغرفة: " + code;
+    initMangoGrid(); // دالة إنشاء الجدول (القديمة)
 }
 
-// ================= LOBBY =================
-
-function updateLobby() {
-    document.getElementById("mPlayersCount").innerText =
-        `اللاعبين: ${mPlayers.length} / ${mMaxPlayers}`;
-}
-
-// ================= GRID =================
-
-function initMango() {
-    const grid = document.getElementById('grid');
-    grid.innerHTML = "";
-
-    mData = Array(25).fill(null).map(() => ({ v: null, m: false }));
-    mCount = 1;
-    mStarted = false;
-
-    for (let i = 0; i < 25; i++) {
-        const c = document.createElement('div');
-        c.className = 'cell';
-
-        c.onclick = () => {
-
-            // تعبئة
-            if (!mStarted) {
-                if (mData[i].v) return;
-
-                mData[i].v = mCount;
-                c.innerText = mCount++;
-                c.classList.add('occupied');
-            }
-
-            // لعب اونلاين
-            else if (mOnline) {
-                if (mTurn === mMyIdx && mData[i].v && !mData[i].m) {
-                    roomChannel.send({
-                        type: 'broadcast',
-                        event: 'play',
-                        payload: { num: mData[i].v }
-                    });
-                }
-            }
-
-            // لوكال
-            else {
-                if (mData[i].v && !mData[i].m) {
-                    markNumber(mData[i].v);
-                }
-            }
-        };
-
-        grid.appendChild(c);
-    }
-}
-
-// ================= READY =================
-
-function confirmMangoReady() {
-    if (mCount < 26) {
-        alert("املأ الجدول الأول!");
-        return;
-    }
-
-    mStarted = true;
-    document.getElementById('mangoStartBtn').classList.add('hidden');
-
-    if (mOnline) {
-        roomChannel.send({ type: 'broadcast', event: 'ready' });
-    } else {
-        startGame();
-    }
-}
-
-// ================= GAME =================
-
-function startGame() {
-    mTurn = 0;
-    document.getElementById('mTurnDisp').classList.remove('hidden');
-    updateTurnUI();
-}
-
-function updateTurnUI() {
-    const el = document.getElementById('mTurnDisp');
-
-    if (mTurn === mMyIdx) {
-        el.innerText = "⭐ دورك";
-        el.style.color = "var(--accent)";
-    } else {
-        el.innerText = "⌛ انتظار اللاعبين";
-        el.style.color = "#94a3b8";
-    }
-}
-
-// ================= LOGIC =================
-
-function markNumber(num) {
+function markNumberLocally(num) {
+    // نبحث عن الخلية اللي فيها الرقم ده ونشطبها
     mData.forEach((item, idx) => {
-        if (item.v == num && !item.m) {
+        if(item.v == num) {
             item.m = true;
             document.querySelectorAll('#grid .cell')[idx].classList.add('marked');
         }
     });
-
-    checkM();
-}
-// ===== FIX Mango Online Buttons & Flow =====
-
-// تحديد عدد اللاعبين
-function setMaxPlayers(n) {
-    mMaxPlayers = n;
+    checkM(); // فحص كلمة MANGO
 }
 
-// تعديل الهوسـت عشان يبدأ الاتصال مباشرة
-function hostMango() {
-    isHost = true;
-    mOnline = true;
-
-    // لو المستخدم مختارش عدد لاعبين نخليه 2 افتراضي
-    if (!mMaxPlayers || mMaxPlayers < 2) {
-        mMaxPlayers = 2;
-    }
-
-    mRoomCode = Math.floor(1000 + Math.random() * 9000);
-
-    initMangoConnection(mRoomCode);
+function nextTurn() {
+    currentTurnIdx = (currentTurnIdx + 1) % maxPlayers;
+    updateMangoUI();
 }
 
-// تأكيد عدد اللاعبين (لو هتستخدم الأزرار)
-function confirmPlayers() {
-    if (!mMaxPlayers || mMaxPlayers < 2) {
-        alert("اختار عدد اللاعبين الأول");
-        return;
-    }
-
-    initMangoConnection(mRoomCode);
-}
-
-// إصلاح زر "أنا جاهز"
-function confirmMangoReady() {
-    if (mCount < 26) {
-        alert("لازم تملأ الجدول الأول!");
-        return;
-    }
-
-    mStarted = true;
-    document.getElementById('mangoStartBtn').classList.add('hidden');
-
-    if (mOnline) {
-        roomChannel.send({ type: 'broadcast', event: 'ready' });
+function updateMangoUI() {
+    const hint = document.getElementById('mangoTurnHint');
+    if(currentTurnIdx === myPlayerIdx) {
+        hint.innerText = "⭐ دورك الآن! اختر رقماً";
     } else {
-        startGame();
+        hint.innerText = `⌛ انتظار اللاعب رقم ${currentTurnIdx + 1}...`;
     }
 }
+// --- Mango Online Logic ---
+let mMaxPlayers = 2;
+let mPlayers = [];
+let mMyIdx = -1;
+let mTurn = 0;
+let mOnlineActive = false;
+let mReadyCount = 0;
 
-// تحديث الواجهة بعد الدخول
-function initMangoConnection(code) {
-    cleanupConnection();
-
-    roomChannel = supabaseClient.channel(`mango_${code}`, {
-        config: { broadcast: { self: true } }
-    });
-
-    roomChannel
-        .on('broadcast', { event: 'join' }, (p) => {
-            if (isHost) {
-                if (!mPlayers.includes(myClientId)) {
-                    mPlayers.push(myClientId);
-                }
-
-                if (!mPlayers.includes(p.payload.id)) {
-                    mPlayers.push(p.payload.id);
-                }
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'sync',
-                    payload: {
-                        players: mPlayers,
-                        max: mMaxPlayers
-                    }
-                });
-            }
-        })
-
-        .on('broadcast', { event: 'sync' }, (p) => {
-            mPlayers = p.payload.players;
-            mMaxPlayers = p.payload.max;
-            mMyIdx = mPlayers.indexOf(myClientId);
-            updateLobby();
-        })
-
-        .on('broadcast', { event: 'ready' }, () => {
-            mReady++;
-            if (mReady === mMaxPlayers) {
-                startGame();
-            }
-        })
-
-        .on('broadcast', { event: 'play' }, (p) => {
-            markNumber(p.payload.num);
-            mTurn = (mTurn + 1) % mMaxPlayers;
-            updateTurnUI();
-        })
-
-        .subscribe((s) => {
-            if (s === 'SUBSCRIBED') {
-                document.getElementById("mRoomCodeDisp").innerText = "كود الغرفة: " + code;
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'join',
-                    payload: { id: myClientId }
-                });
-            }
-        });
-
-    document.getElementById('mangoOnlineSetup').classList.add('hidden');
+function startMangoLocal() {
+    mOnlineActive = false;
+    document.getElementById('mangoModeSelect').classList.add('hidden');
     document.getElementById('mangoPlayArea').classList.remove('hidden');
-    document.getElementById('mOnlineHeader').classList.remove('hidden');
-
-    initMango();
+    document.getElementById('mOnlineHeader').classList.add('hidden');
+    initMango(); // تشغيل المود القديم
 }
 
-// تحسين عرض عدد اللاعبين
-function updateLobby() {
-    document.getElementById("mPlayersCount").innerText =
-        `👥 ${mPlayers.length} / ${mMaxPlayers}`;
+function showMangoOnlineSetup() {
+    document.getElementById('mangoModeSelect').classList.add('hidden');
+    document.getElementById('mangoOnlineSetup').classList.remove('hidden');
 }
-// ===== FIX FINAL Mango Online =====
+
+function backToMangoMode() {
+    document.getElementById('mangoOnlineSetup').classList.add('hidden');
+    document.getElementById('mangoModeSelect').classList.remove('hidden');
+}
 
 function setMaxPlayers(n) {
     mMaxPlayers = n;
-    alert("تم اختيار " + n + " لاعبين");
+    alert(`تم تحديد الغرفة لـ ${n} لاعبين. شارك الكود مع أصحابك.`);
+    document.getElementById('mangoHostOptions').classList.add('hidden');
 }
 
 function hostMango() {
-    isHost = true;
-    mOnline = true;
-
-    if (!mMaxPlayers || mMaxPlayers < 2) {
-        mMaxPlayers = 2;
-    }
-
-    mRoomCode = Math.floor(1000 + Math.random() * 9000);
-
-    mPlayers = [];
-    mReady = 0;
-
-    initMangoConnection(mRoomCode);
-}
-
-function joinMango() {
-    isHost = false;
-    mOnline = true;
-
-    const code = document.getElementById("mRoomID").value;
-    if (!code) {
-        alert("اكتب كود الغرفة");
-        return;
-    }
-
-    mPlayers = [];
-    mReady = 0;
-
+    isHost = true; mOnlineActive = true;
+    const code = Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('mangoHostOptions').classList.remove('hidden');
     initMangoConnection(code);
 }
 
-function confirmMangoReady() {
-    if (mCount < 26) {
-        alert("املأ الجدول الأول!");
-        return;
-    }
-
-    mStarted = true;
-    document.getElementById('mangoStartBtn').classList.add('hidden');
-
-    roomChannel.send({
-        type: 'broadcast',
-        event: 'ready'
-    });
+function joinMango() {
+    isHost = false; mOnlineActive = true;
+    const code = document.getElementById('mRoomID').value;
+    if(code) initMangoConnection(code);
 }
 
 function initMangoConnection(code) {
     cleanupConnection();
-
-    roomChannel = supabaseClient.channel(`mango_${code}`, {
-        config: { broadcast: { self: true } }
-    });
-
+    roomChannel = supabaseClient.channel(`mango_${code}`, { config: { broadcast: { self: true } } });
+    
     roomChannel
         .on('broadcast', { event: 'join' }, (p) => {
-            if (isHost) {
-                if (!mPlayers.includes(myClientId)) {
-                    mPlayers.push(myClientId);
-                }
-
-                if (!mPlayers.includes(p.payload.id)) {
-                    mPlayers.push(p.payload.id);
-                }
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'sync',
-                    payload: {
-                        players: mPlayers,
-                        max: mMaxPlayers
-                    }
-                });
+            if(isHost) {
+                if(!mPlayers.includes(p.payload.id)) mPlayers.push(p.payload.id);
+                roomChannel.send({ type: 'broadcast', event: 'sync_config', payload: { max: mMaxPlayers, currentPlayers: mPlayers } });
             }
         })
-
-        .on('broadcast', { event: 'sync' }, (p) => {
-            mPlayers = p.payload.players;
-            mMaxPlayers = p.payload.max;
-            mMyIdx = mPlayers.indexOf(myClientId);
-            updateLobby();
-        })
-
-        .on('broadcast', { event: 'ready' }, () => {
-            mReady++;
-
-            if (mReady >= mMaxPlayers) {
-                startGame();
+        .on('broadcast', { event: 'sync_config' }, (p) => {
+            if(!isHost) {
+                mMaxPlayers = p.payload.max;
+                mPlayers = p.payload.currentPlayers;
+                mMyIdx = mPlayers.indexOf(myClientId);
             }
+            updateMangoLobbyUI();
         })
-
-        .on('broadcast', { event: 'play' }, (p) => {
-            markNumber(p.payload.num);
+        .on('broadcast', { event: 'ready_up' }, () => {
+            mReadyCount++;
+            if(mReadyCount === mMaxPlayers) startMangoGame();
+        })
+        .on('broadcast', { event: 'pick_num' }, (p) => {
+            markNumberLocally(p.payload.num);
             mTurn = (mTurn + 1) % mMaxPlayers;
-            updateTurnUI();
+            updateMangoTurnUI();
         })
-
         .subscribe((s) => {
-            if (s === 'SUBSCRIBED') {
-                document.getElementById("mRoomCodeDisp").innerText = "كود الغرفة: " + code;
-
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'join',
-                    payload: { id: myClientId }
-                });
+            if(s === 'SUBSCRIBED') {
+                document.getElementById('mRoomCodeDisp').innerText = "كود الغرفة: " + code;
+                roomChannel.send({ type: 'broadcast', event: 'join', payload: { id: myClientId } });
             }
         });
 
     document.getElementById('mangoOnlineSetup').classList.add('hidden');
     document.getElementById('mangoPlayArea').classList.remove('hidden');
     document.getElementById('mOnlineHeader').classList.remove('hidden');
-
     initMango();
 }
+
+function confirmMangoReady() {
+    if(mCount < 26) { alert("ملأ الجدول أولاً!"); return; }
+    mStarted = true; // منع تعديل الجدول
+    document.getElementById('mangoStartBtn').classList.add('hidden');
+    if(mOnlineActive) {
+        roomChannel.send({ type: 'broadcast', event: 'ready_up' });
+    } else {
+        startMangoMode(); // المود المحلي القديم
+    }
+}
+
+function startMangoGame() {
+    mTurn = 0;
+    updateMangoTurnUI();
+    document.getElementById('mTurnDisp').classList.remove('hidden');
+}
+
+function updateMangoTurnUI() {
+    const disp = document.getElementById('mTurnDisp');
+    if(mTurn === mMyIdx) {
+        disp.innerText = "⭐ دورك: اختر رقم من جدولك";
+        disp.style.color = "var(--accent)";
+    } else {
+        disp.innerText = `⌛ انتظار اللاعب رقم ${mTurn + 1}...`;
+        disp.style.color = "#94a3b8";
+    }
+}
+
+// تعديل بسيط في دالة الضغط على الخلية القديمة
+// داخل initMango()، في الجزء الخاص بـ c.onclick:
+/*
+c.onclick = () => {
+    if(!mStarted) {
+        // ... كود التعبئة القديم ...
+    } else if(mOnlineActive) {
+        // المود الأونلاين
+        if(mTurn === mMyIdx && mData[i].v && !mData[i].m) {
+            roomChannel.send({ type: 'broadcast', event: 'pick_num', payload: { num: mData[i].v } });
+        }
+    } else {
+        // المود المحلي القديم
+        if(mData[i].v && !mData[i].m) {
+            mData[i].m = true; c.classList.add('marked'); checkM();
+        }
+    }
+};
+*/
+
+function markNumberLocally(num) {
+    mData.forEach((item, idx) => {
+        if(item.v == num) {
+            item.m = true;
+            document.querySelectorAll('#grid .cell')[idx].classList.add('marked');
+        }
+    });
+    checkM();
+}
+
+
 </script>
 </body>
 </html>
