@@ -1111,6 +1111,128 @@ function updateLobby() {
     document.getElementById("mPlayersCount").innerText =
         `👥 ${mPlayers.length} / ${mMaxPlayers}`;
 }
+// ===== FIX FINAL Mango Online =====
+
+function setMaxPlayers(n) {
+    mMaxPlayers = n;
+    alert("تم اختيار " + n + " لاعبين");
+}
+
+function hostMango() {
+    isHost = true;
+    mOnline = true;
+
+    if (!mMaxPlayers || mMaxPlayers < 2) {
+        mMaxPlayers = 2;
+    }
+
+    mRoomCode = Math.floor(1000 + Math.random() * 9000);
+
+    mPlayers = [];
+    mReady = 0;
+
+    initMangoConnection(mRoomCode);
+}
+
+function joinMango() {
+    isHost = false;
+    mOnline = true;
+
+    const code = document.getElementById("mRoomID").value;
+    if (!code) {
+        alert("اكتب كود الغرفة");
+        return;
+    }
+
+    mPlayers = [];
+    mReady = 0;
+
+    initMangoConnection(code);
+}
+
+function confirmMangoReady() {
+    if (mCount < 26) {
+        alert("املأ الجدول الأول!");
+        return;
+    }
+
+    mStarted = true;
+    document.getElementById('mangoStartBtn').classList.add('hidden');
+
+    roomChannel.send({
+        type: 'broadcast',
+        event: 'ready'
+    });
+}
+
+function initMangoConnection(code) {
+    cleanupConnection();
+
+    roomChannel = supabaseClient.channel(`mango_${code}`, {
+        config: { broadcast: { self: true } }
+    });
+
+    roomChannel
+        .on('broadcast', { event: 'join' }, (p) => {
+            if (isHost) {
+                if (!mPlayers.includes(myClientId)) {
+                    mPlayers.push(myClientId);
+                }
+
+                if (!mPlayers.includes(p.payload.id)) {
+                    mPlayers.push(p.payload.id);
+                }
+
+                roomChannel.send({
+                    type: 'broadcast',
+                    event: 'sync',
+                    payload: {
+                        players: mPlayers,
+                        max: mMaxPlayers
+                    }
+                });
+            }
+        })
+
+        .on('broadcast', { event: 'sync' }, (p) => {
+            mPlayers = p.payload.players;
+            mMaxPlayers = p.payload.max;
+            mMyIdx = mPlayers.indexOf(myClientId);
+            updateLobby();
+        })
+
+        .on('broadcast', { event: 'ready' }, () => {
+            mReady++;
+
+            if (mReady >= mMaxPlayers) {
+                startGame();
+            }
+        })
+
+        .on('broadcast', { event: 'play' }, (p) => {
+            markNumber(p.payload.num);
+            mTurn = (mTurn + 1) % mMaxPlayers;
+            updateTurnUI();
+        })
+
+        .subscribe((s) => {
+            if (s === 'SUBSCRIBED') {
+                document.getElementById("mRoomCodeDisp").innerText = "كود الغرفة: " + code;
+
+                roomChannel.send({
+                    type: 'broadcast',
+                    event: 'join',
+                    payload: { id: myClientId }
+                });
+            }
+        });
+
+    document.getElementById('mangoOnlineSetup').classList.add('hidden');
+    document.getElementById('mangoPlayArea').classList.remove('hidden');
+    document.getElementById('mOnlineHeader').classList.remove('hidden');
+
+    initMango();
+}
 </script>
 </body>
 </html>
