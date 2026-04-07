@@ -338,7 +338,7 @@
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "OP");
             if (r.startsWith("3✅")) {
-                setTimeout(() => { alert("💀 للأسف، الخصم فاز!"); location.reload(); }, 500);
+                setTimeout(() => { showResult(false); location.reload(); }, 500);
                 return;
             }
             currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
@@ -356,7 +356,7 @@
         if(!g) return;
         const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
         addLog(g, r, "ME");
-        if(r.startsWith("3✅")) { alert("🏆 مبروك الفوز!"); location.reload(); }
+        if(r.startsWith("3✅")) { showResult(true); location.reload(); }
         resetInputs();
     }
 
@@ -377,6 +377,57 @@
         let n = parseInt(el.innerText) + v;
         if(n >= 0 && n <= 3) el.innerText = n;
     }
+</script>
+
+
+
+
+
+<div id="finishOverlay" class="hidden" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.98); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); animation: fadeIn 0.3s ease;">
+    <div style="background: var(--card); padding: 40px 20px; border-radius: 32px; border: 2px solid var(--accent); width: 85%; max-width: 350px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+        <div id="finishIcon" style="font-size: 5rem; margin-bottom: 15px;">🏆</div>
+        <h2 id="finishTitle" style="font-size: 2rem; margin: 10px 0; color: var(--accent);">مبروك الفوز!</h2>
+        <p id="finishMsg" style="color: #94a3b8; margin-bottom: 30px;">لقد قمت بأداء رائع كالعادة.</p>
+        <button onclick="location.reload()" style="background: var(--primary); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">لعب مرة أخرى</button>
+        <button onclick="document.getElementById('finishOverlay').classList.add('hidden')" class="btn-alt" style="margin-top: 10px; font-size: 14px; opacity: 0.7;">إغلاق</button>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
+    .hidden { display: none !important; }
+</style>
+
+<script>
+// وظيفة لإظهار واجهة الفوز أو الخسارة برمجياً
+function showResult(isWin, message = "") {
+    const overlay = document.getElementById('finishOverlay');
+    const icon = document.getElementById('finishIcon');
+    const title = document.getElementById('finishTitle');
+    const msg = document.getElementById('finishMsg');
+
+    if (isWin) {
+        icon.innerText = "🏆";
+        title.innerText = "مبروك الفوز!";
+        title.style.color = "var(--accent)";
+        msg.innerText = message || "أداء أسطوري، لقد كشفت السر!";
+        overlay.querySelector('div').style.borderColor = "var(--accent)";
+    } else {
+        icon.innerText = "💀";
+        title.innerText = "هارد لك!";
+        title.style.color = "#ef4444";
+        msg.innerText = message || "للأسف، الخصم كان أسرع هذه المرة.";
+        overlay.querySelector('div').style.borderColor = "#ef4444";
+    }
+    overlay.classList.remove('hidden');
+}
+
+// تعديل داخل الـ handleAction والـ saveLocalLog:
+// بدلاً من alert("🏆 مبروك الفوز!"); استبدلها بـ:
+// showResult(true);
+
+// وبدلاً من alert("💀 للأسف، الخصم فاز!"); استبدلها بـ:
+// showResult(false);
 </script>
 </body>
 </html>
