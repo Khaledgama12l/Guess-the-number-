@@ -10,7 +10,7 @@
         body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); text-align: center; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 500px; margin: auto; padding: 15px; padding-top: env(safe-area-inset-top); }
         .card { background: var(--card); padding: 20px; border-radius: 24px; margin-top: 15px; border: 1px solid #334155; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         button { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 14px; background: var(--accent); color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
         button:disabled { background: #475569; opacity: 0.6; cursor: not-allowed; }
         .btn-alt { background: #475569; }
@@ -28,8 +28,8 @@
         .stepper label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 8px; }
         .stepper-controls { display: flex; align-items: center; justify-content: space-around; }
         .step-btn { background: #334155; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 20px; max-height: 250px; overflow-y: auto; border: 1px solid #334155; }
-        .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
+        .log-box { background: #0f172a; border-radius: 12px; padding: 10px; margin-top: 5px; height: 200px; overflow-y: auto; border: 1px solid #334155; }
+        .log-entry { border-bottom: 1px solid #1e293b; padding: 8px 0; display: flex; flex-direction: column; align-items: flex-start; text-align: right; }
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
     </style>
 </head>
@@ -97,7 +97,18 @@
                     <div class="stepper"><label>غلط ❌</label><div class="stepper-controls"><div class="step-btn" onclick="uStep('s3',-1)">-</div><div id="s3">0</div><div class="step-btn" onclick="uStep('s3',1)">+</div></div></div>
                 </div>
                 <button id="actionBtn" onclick="handleAction()">إرسال</button>
-                <div id="guessLogs" class="log-box"></div>
+                
+                <div id="logsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                    <div>
+                        <small style="color:var(--accent)">تخميناتي</small>
+                        <div id="myLogs" class="log-box"></div>
+                    </div>
+                    <div>
+                        <small style="color:var(--secondary)">الخصم</small>
+                        <div id="opLogs" class="log-box"></div>
+                    </div>
+                </div>
+
                 <button style="background:#ef4444; margin-top:10px" onclick="location.reload()">إعادة</button>
             </div>
             <button onclick="switchView('homeView')" class="btn-alt" style="margin-top:10px">الرئيسية</button>
@@ -110,7 +121,6 @@
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1cWdrZmZnbWlxYmRtdHNueHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDU3MzIsImV4cCI6MjA5MTA4MTczMn0.Oe8L89X0dPJXd5oY0vS5KtlNejx5OAL4T2iKTrsPnNM';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // معرف فريد لكل لاعب لمنع تكرار الأدوار
     const myClientId = Math.random().toString(36).substring(7);
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
     let turnStatus = "WAIT", currentPendingGuess = null, isOnline = false, gameStarted = false;
@@ -121,7 +131,7 @@
         document.getElementById(v).classList.remove('hidden');
     }
 
-    // --- Mango Logic (Same) ---
+    // --- Mango Logic ---
     let mData = [], mCount = 1, mStarted = false;
     function initMango() {
         const g = document.getElementById('grid'); g.innerHTML = '';
@@ -205,18 +215,10 @@
                 if (isHost && meReady) attemptStartGame();
             })
             .on('broadcast', { event: 'start_signal' }, (p) => { 
-                if (gameStarted) return;
-                
-                // تحديد الدور بناءً على قيمة hostStarts المرسلة من الهوست
-                const hostStarts = p.payload.hostStarts;
-                
-                if (isHost) {
-                    turnStatus = hostStarts ? "GUESS" : "WAIT";
-                } else {
-                    turnStatus = hostStarts ? "WAIT" : "GUESS";
-                }
-                
                 roomChannel.send({ type: 'broadcast', event: 'start_ack' });
+                if (gameStarted) return;
+                const hostStarts = p.payload.hostStarts;
+                turnStatus = isHost ? (hostStarts ? "GUESS" : "WAIT") : (hostStarts ? "WAIT" : "GUESS");
                 runCountdown(); 
             })
             .on('broadcast', { event: 'start_ack' }, () => {
@@ -231,7 +233,11 @@
                 updateUI();
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
-                addLog(p.payload.g, p.payload.r, "الخصم");
+                addLog(p.payload.g, p.payload.r, "ME"); 
+                if (p.payload.r.startsWith("3✅")) {
+                    setTimeout(() => { alert("🏆 مبروك! فزت بالجيم"); location.reload(); }, 500);
+                    return;
+                }
                 turnStatus = "WAIT"; 
                 updateUI();
             })
@@ -252,15 +258,10 @@
 
     function attemptStartGame() {
         if (gameStarted) return;
-        // الهوست يقرر عشوائياً مرة واحدة فقط
         const hostStarts = Math.random() < 0.5;
         startRetryInterval = setInterval(() => {
             if(!gameStarted) {
-                roomChannel.send({ 
-                    type: 'broadcast', 
-                    event: 'start_signal', 
-                    payload: { hostStarts: hostStarts } 
-                });
+                roomChannel.send({ type: 'broadcast', event: 'start_signal', payload: { hostStarts: hostStarts } });
             }
         }, 800);
     }
@@ -274,8 +275,7 @@
         const t = setInterval(() => {
             cd.innerText = sec;
             if(sec <= 0) {
-                clearInterval(t); 
-                cd.classList.add('hidden');
+                clearInterval(t); cd.classList.add('hidden');
                 document.getElementById('guessSetup').classList.add('hidden');
                 document.getElementById('guessPlay').classList.remove('hidden');
                 document.getElementById('displaySecret').innerText = mySecret;
@@ -296,44 +296,39 @@
                 ind.innerText = "🚨 الخصم خمن: " + currentPendingGuess;
                 ind.style.color = "var(--secondary)";
                 btn.innerText = "رد بالنتيجة";
-                btn.disabled = false;
-                input.disabled = true;
+                btn.disabled = false; input.disabled = true;
                 break;
             case "GUESS":
                 ind.innerText = "🟢 دورك تخمن رقم";
                 ind.style.color = "var(--accent)";
                 btn.innerText = "إرسال تخمين";
-                btn.disabled = false;
-                input.disabled = false;
+                btn.disabled = false; input.disabled = false;
                 break;
             case "WAIT":
                 ind.innerText = "⌛ بانتظار حركة الخصم...";
                 ind.style.color = "#94a3b8";
                 btn.innerText = "انتظر...";
-                btn.disabled = true;
-                input.disabled = true;
+                btn.disabled = true; input.disabled = true;
                 break;
         }
     }
 
     function handleAction() {
-        if (!isOnline) {
-            saveLocalLog();
-            return;
-        }
+        if (!isOnline) { saveLocalLog(); return; }
         if (turnStatus === "REPLY") {
             const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
-            addLog(currentPendingGuess, r, "الخصم");
-            currentPendingGuess = null;
-            turnStatus = "GUESS"; 
-            updateUI();
+            addLog(currentPendingGuess, r, "OP");
+            if (r.startsWith("3✅")) {
+                setTimeout(() => { alert("💀 للأسف، الخصم فاز!"); location.reload(); }, 500);
+                return;
+            }
+            currentPendingGuess = null; turnStatus = "GUESS"; updateUI();
         } else if (turnStatus === "GUESS") {
             const g = document.getElementById('currentGuess').value;
             if(!g) return;
             roomChannel.send({ type: 'broadcast', event: 'guess_sent', payload: { g: g } });
-            turnStatus = "WAIT"; 
-            updateUI();
+            turnStatus = "WAIT"; updateUI();
         }
         resetInputs();
     }
@@ -342,7 +337,8 @@
         const g = document.getElementById('currentGuess').value;
         if(!g) return;
         const r = `${document.getElementById('s1').innerText}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
-        addLog(g, r, "أنا");
+        addLog(g, r, "ME");
+        if(r.startsWith("3✅")) { alert("🏆 مبروك الفوز!"); location.reload(); }
         resetInputs();
     }
 
@@ -351,16 +347,17 @@
         ['s1','s2','s3'].forEach(id => document.getElementById(id).innerText = '0');
     }
 
-    function addLog(g, r, p) {
-        const color = p === "أنا" ? "#22c55e" : "#3b82f6";
-        const html = `<div class="log-entry"><b style="color:${color}">[${p}] ${g}</b><span>${r}</span></div>`;
-        document.getElementById('guessLogs').insertAdjacentHTML('afterbegin', html);
+    function addLog(g, r, target) {
+        const container = target === "ME" ? 'myLogs' : 'opLogs';
+        const color = target === "ME" ? "var(--accent)" : "var(--secondary)";
+        const html = `<div class="log-entry"><b style="color:${color}">${g}</b><span>${r}</span></div>`;
+        document.getElementById(container).insertAdjacentHTML('afterbegin', html);
     }
 
     function uStep(id, v) {
         const el = document.getElementById(id);
         let n = parseInt(el.innerText) + v;
-        if(n >= 0 && n <= 9) el.innerText = n;
+        if(n >= 0 && n <= 3) el.innerText = n;
     }
 </script>
 </body>
