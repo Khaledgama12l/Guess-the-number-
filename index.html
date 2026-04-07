@@ -830,6 +830,150 @@ function updateMangoUI() {
         hint.innerText = `⌛ انتظار اللاعب رقم ${currentTurnIdx + 1}...`;
     }
 }
+// --- Mango Online Logic ---
+let mMaxPlayers = 2;
+let mPlayers = [];
+let mMyIdx = -1;
+let mTurn = 0;
+let mOnlineActive = false;
+let mReadyCount = 0;
+
+function startMangoLocal() {
+    mOnlineActive = false;
+    document.getElementById('mangoModeSelect').classList.add('hidden');
+    document.getElementById('mangoPlayArea').classList.remove('hidden');
+    document.getElementById('mOnlineHeader').classList.add('hidden');
+    initMango(); // تشغيل المود القديم
+}
+
+function showMangoOnlineSetup() {
+    document.getElementById('mangoModeSelect').classList.add('hidden');
+    document.getElementById('mangoOnlineSetup').classList.remove('hidden');
+}
+
+function backToMangoMode() {
+    document.getElementById('mangoOnlineSetup').classList.add('hidden');
+    document.getElementById('mangoModeSelect').classList.remove('hidden');
+}
+
+function setMaxPlayers(n) {
+    mMaxPlayers = n;
+    alert(`تم تحديد الغرفة لـ ${n} لاعبين. شارك الكود مع أصحابك.`);
+    document.getElementById('mangoHostOptions').classList.add('hidden');
+}
+
+function hostMango() {
+    isHost = true; mOnlineActive = true;
+    const code = Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('mangoHostOptions').classList.remove('hidden');
+    initMangoConnection(code);
+}
+
+function joinMango() {
+    isHost = false; mOnlineActive = true;
+    const code = document.getElementById('mRoomID').value;
+    if(code) initMangoConnection(code);
+}
+
+function initMangoConnection(code) {
+    cleanupConnection();
+    roomChannel = supabaseClient.channel(`mango_${code}`, { config: { broadcast: { self: true } } });
+    
+    roomChannel
+        .on('broadcast', { event: 'join' }, (p) => {
+            if(isHost) {
+                if(!mPlayers.includes(p.payload.id)) mPlayers.push(p.payload.id);
+                roomChannel.send({ type: 'broadcast', event: 'sync_config', payload: { max: mMaxPlayers, currentPlayers: mPlayers } });
+            }
+        })
+        .on('broadcast', { event: 'sync_config' }, (p) => {
+            if(!isHost) {
+                mMaxPlayers = p.payload.max;
+                mPlayers = p.payload.currentPlayers;
+                mMyIdx = mPlayers.indexOf(myClientId);
+            }
+            updateMangoLobbyUI();
+        })
+        .on('broadcast', { event: 'ready_up' }, () => {
+            mReadyCount++;
+            if(mReadyCount === mMaxPlayers) startMangoGame();
+        })
+        .on('broadcast', { event: 'pick_num' }, (p) => {
+            markNumberLocally(p.payload.num);
+            mTurn = (mTurn + 1) % mMaxPlayers;
+            updateMangoTurnUI();
+        })
+        .subscribe((s) => {
+            if(s === 'SUBSCRIBED') {
+                document.getElementById('mRoomCodeDisp').innerText = "كود الغرفة: " + code;
+                roomChannel.send({ type: 'broadcast', event: 'join', payload: { id: myClientId } });
+            }
+        });
+
+    document.getElementById('mangoOnlineSetup').classList.add('hidden');
+    document.getElementById('mangoPlayArea').classList.remove('hidden');
+    document.getElementById('mOnlineHeader').classList.remove('hidden');
+    initMango();
+}
+
+function confirmMangoReady() {
+    if(mCount < 26) { alert("ملأ الجدول أولاً!"); return; }
+    mStarted = true; // منع تعديل الجدول
+    document.getElementById('mangoStartBtn').classList.add('hidden');
+    if(mOnlineActive) {
+        roomChannel.send({ type: 'broadcast', event: 'ready_up' });
+    } else {
+        startMangoMode(); // المود المحلي القديم
+    }
+}
+
+function startMangoGame() {
+    mTurn = 0;
+    updateMangoTurnUI();
+    document.getElementById('mTurnDisp').classList.remove('hidden');
+}
+
+function updateMangoTurnUI() {
+    const disp = document.getElementById('mTurnDisp');
+    if(mTurn === mMyIdx) {
+        disp.innerText = "⭐ دورك: اختر رقم من جدولك";
+        disp.style.color = "var(--accent)";
+    } else {
+        disp.innerText = `⌛ انتظار اللاعب رقم ${mTurn + 1}...`;
+        disp.style.color = "#94a3b8";
+    }
+}
+
+// تعديل بسيط في دالة الضغط على الخلية القديمة
+// داخل initMango()، في الجزء الخاص بـ c.onclick:
+/*
+c.onclick = () => {
+    if(!mStarted) {
+        // ... كود التعبئة القديم ...
+    } else if(mOnlineActive) {
+        // المود الأونلاين
+        if(mTurn === mMyIdx && mData[i].v && !mData[i].m) {
+            roomChannel.send({ type: 'broadcast', event: 'pick_num', payload: { num: mData[i].v } });
+        }
+    } else {
+        // المود المحلي القديم
+        if(mData[i].v && !mData[i].m) {
+            mData[i].m = true; c.classList.add('marked'); checkM();
+        }
+    }
+};
+*/
+
+function markNumberLocally(num) {
+    mData.forEach((item, idx) => {
+        if(item.v == num) {
+            item.m = true;
+            document.querySelectorAll('#grid .cell')[idx].classList.add('marked');
+        }
+    });
+    checkM();
+}
+
 
 </script>
 </body>
