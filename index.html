@@ -32,24 +32,21 @@
         .log-entry { border-bottom: 1px solid #1e293b; padding: 10px 0; display: flex; justify-content: space-between; font-family: monospace; }
         #countdown { font-size: 5rem; font-weight: 900; color: var(--accent); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-shadow: 0 0 30px rgba(34, 197, 94, 0.6); pointer-events: none; }
         
-        /* Win Overlay */
-        #winOverlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .win-card { background: var(--card); padding: 40px; border-radius: 32px; border: 2px solid var(--accent); box-shadow: 0 0 50px rgba(34, 197, 94, 0.3); width: 100%; max-width: 400px; }
-        .win-icon { font-size: 5rem; margin-bottom: 10px; display: block; }
+        /* Win View Styles */
+        #winView { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .win-title { color: var(--accent); font-size: 3rem; margin: 10px 0; text-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="countdown" class="hidden"></div>
-    
-    <div id="winOverlay" class="hidden">
-        <div class="win-card">
-            <span class="win-icon">🏆</span>
-            <h1 id="winTitle" style="color: var(--accent);">مبروك!</h1>
-            <p id="winMessage" style="font-size: 1.2rem; margin-bottom: 30px;"></p>
-            <button onclick="location.reload()" class="btn-primary">لعب مرة أخرى</button>
-        </div>
+
+    <div id="winView" class="hidden">
+        <div class="win-icon" style="font-size: 5rem;">🏆</div>
+        <h1 class="win-title" id="winResultTitle">فوز!</h1>
+        <p id="winResultMsg" style="font-size: 1.2rem; margin-bottom: 30px;"></p>
+        <button onclick="location.reload()" style="max-width: 300px;">لعب مرة أخرى</button>
     </div>
 
     <div id="homeView">
@@ -131,7 +128,7 @@
     let startRetryInterval = null;
 
     function switchView(v) {
-        document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
+        document.querySelectorAll('.container > div, #winView').forEach(d => d.classList.add('hidden'));
         document.getElementById(v).classList.remove('hidden');
     }
 
@@ -214,7 +211,7 @@
     function setupConn(code) {
         roomChannel = supabaseClient.channel(`room_${code}`, { config: { broadcast: { self: false } } });
         roomChannel
-            .on('broadcast', { event: 'ready' }, () => { 
+            .on('broadcast', { event: 'ready' }, (p) => { 
                 opReady = true; 
                 if (isHost && meReady) attemptStartGame();
             })
@@ -239,7 +236,7 @@
             })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
                 addLog(p.payload.g, p.payload.r, "الخصم");
-                checkWin(p.payload.r, "ME");
+                checkWin(p.payload.r, "ME"); // فوزي أنا
                 turnStatus = "WAIT"; 
                 updateUI();
             })
@@ -327,7 +324,7 @@
             const r = `${s1}✅ ${document.getElementById('s2').innerText}🔄 ${document.getElementById('s3').innerText}❌`;
             roomChannel.send({ type: 'broadcast', event: 'reply_sent', payload: { g: currentPendingGuess, r: r } });
             addLog(currentPendingGuess, r, "الخصم");
-            checkWin(r, "OP"); // الخصم فاز إذا كانت إجابته صحيحة
+            checkWin(r, "OP"); // فوز الخصم
             currentPendingGuess = null;
             turnStatus = "GUESS"; 
             updateUI();
@@ -342,24 +339,24 @@
     }
 
     function checkWin(resStr, player) {
-        // إذا كان عدد الـ ✅ يساوي طول الرقم السري (نفترض 4 أرقام)
+        // فك تشفير عدد الـ ✅
         const correctCount = parseInt(resStr.split('✅')[0]);
-        const secretLen = mySecret.length || 4;
-
-        if (correctCount === secretLen) {
-            const overlay = document.getElementById('winOverlay');
-            const title = document.getElementById('winTitle');
-            const msg = document.getElementById('winMessage');
+        // لا نتحقق إلا إذا كان هناك سر مدخل فعلياً وبعدد صحيح
+        if (mySecret && correctCount === mySecret.length && mySecret.length > 0) {
+            const winView = document.getElementById('winView');
+            const winTitle = document.getElementById('winResultTitle');
+            const winMsg = document.getElementById('winResultMsg');
             
-            overlay.classList.remove('hidden');
             if (player === "ME") {
-                title.innerText = "انتصار ساحق! 🔥";
-                msg.innerText = "لقد كشفت رقم الخصم بنجاح.";
+                winTitle.innerText = "مبروووك! 🎉";
+                winTitle.style.color = "var(--accent)";
+                winMsg.innerText = "لقد كشفت رقم الخصم بنجاح!";
             } else {
-                title.innerText = "هارد لك! 💀";
-                title.style.color = "#ef4444";
-                msg.innerText = "الخصم كشف رقمك السري أولاً.";
+                winTitle.innerText = "للأسف! 💔";
+                winTitle.style.color = "#ef4444";
+                winMsg.innerText = "الخصم كشف رقمك السري أولاً.";
             }
+            winView.classList.remove('hidden');
         }
     }
 
