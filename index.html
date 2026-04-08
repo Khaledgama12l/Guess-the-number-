@@ -61,6 +61,69 @@
     user-select: none;         /* Standard syntax */
     touch-action: manipulation; /* يحسن الاستجابة على الموبايل ويمنع الـ Double-tap zoom */
 }
+#winOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); display: flex; align-items: center;
+    justify-content: center; z-index: 1000; color: white; text-align: center;
+}
+.win-content { background: #222; padding: 40px; border-radius: 20px; border: 2px solid #4caf50; }
+.win-content button { padding: 10px 20px; margin-top: 20px; cursor: pointer; }
+#mangoWord span {
+    font-size: 2rem;
+    margin: 0 5px;
+    position: relative;
+    display: inline-block;
+}
+#mangoWord span.striked {
+    color: #888;
+}
+#mangoWord span.striked::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 3px;
+    background: red;
+    transform: translateY(-50%);
+}
+/* في ملف style.css */
+#mangoWord {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+    font-family: 'Courier New', Courier, monospace; /* خط عريض */
+    font-weight: bold;
+}
+
+#mangoWord span {
+    font-size: 2.5rem; /* حجم كبير */
+    color: #fff; /* لون الحرف الافتراضي (أبيض مثلاً) */
+    position: relative;
+    display: inline-block;
+    transition: color 0.3s ease;
+}
+
+/* التنسيق عند الشطب */
+#mangoWord span.striked {
+    color: #555; /* تغيير لون الحرف المشتوب */
+}
+
+#mangoWord span.striked::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 4px; /* سمك الخط */
+    background: #ff4444; /* لون خط الشطب (أحمر) */
+    transform: translateY(-50%) scaleX(1); /* الأنيميشن */
+    transform-origin: left;
+    transition: transform 0.3s ease;
+    border-radius: 2px;
+}
+
     </style>
 </head>
 
@@ -114,7 +177,16 @@
                 <button class="btn-alt" onclick="backToMangoMode()" style="margin-top: 20px;">رجوع</button>
             </div>
         </div>
-
+        <div id="mScoreDisp" style="text-align:center; margin:10px; font-weight:bold; color:var(--secondary);">
+    النتيجة: أنت 0 | الخصم 0
+</div>
+<div id="mangoWord" class="mango-word-container">
+    <span>O</span>
+    <span>G</span>
+    <span>N</span>
+    <span>A</span>
+    <span>M</span>
+</div>
         <div id="mangoPlayArea" class="hidden">
             <div id="mOnlineHeader" class="hidden" style="margin-bottom:15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 12px;">
                 <div id="mRoomCodeDisp" style="color:var(--secondary); font-weight:bold; font-size: 1.2rem;"></div>
@@ -132,7 +204,6 @@
             <div id="mTurnDisp" class="hidden" style="margin: 15px 0; padding: 10px; border-radius: 12px; font-weight: bold; font-size: 0.9rem;"></div>
 
             <div id="grid"></div>
-            <div id="mangoWord"></div>
 
             <div class="card chat-mini" style="margin-top:20px; padding: 10px; background: #16213e; border: 1px solid #334155;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">

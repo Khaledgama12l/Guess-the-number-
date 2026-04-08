@@ -8,6 +8,7 @@
     toast.classList.remove('hidden');
     setTimeout(() => toast.classList.add('hidden'), duration);
 }
+
     let roomChannel = null, mySecret = "", opReady = false, meReady = false, isHost = false;
     let turnStatus = "WAIT", currentPendingGuess = null, isOnline = false, gameStarted = false;
     let startRetryInterval = null;
@@ -20,7 +21,8 @@
     let mReadyCount = 0;
     let mangoRoomCode = "";
     let playerName = localStorage.getItem("playerName");
-    
+    let readyPlayers = [];
+let enemyScore = 0;
     if (!playerName) {
         if (!playerName) playerName = "لاعب_" + Math.floor(Math.random() * 10000);
         localStorage.setItem("playerName", playerName);
@@ -167,8 +169,10 @@ let myClientId = Math.random().toString(36).substr(2, 9);
                 updateUI();
             })
             .on('broadcast', { event: 'game_over' }, (p) => {
-    if (p.payload.winner !== myClientId) {
-        showResult(false, "الخصم خمن رقمك صح!");
+    if (p.payload.winner === myClientId) {
+        showResult(true, "كسبت!");
+    } else {
+        showResult(false, "الخصم كسب");
     }
 })
             .on('broadcast', { event: 'reply_sent' }, (p) => {
@@ -304,7 +308,7 @@ const r = `${s1}✅ ${s2}🔄 ${s3}❌`;            roomChannel.send({ type: 'br
     showToast("لازم رقم مكون من 3 أرقام");
     return;
 }
-            roomChannel.httpSend({
+            roomChannel.send({
   type: 'broadcast',
   event: 'guess_sent',
   payload: { g: g }
@@ -366,6 +370,9 @@ const r = `${s1}✅ ${s2}🔄 ${s3}❌`;
     
 // وظيفة لإظهار واجهة الفوز أو الخسارة برمجياً
 function showResult(isWin, message = "") {
+
+    if (isWin) myScore++;
+else opScore++;
     const overlay = document.getElementById('finishOverlay');
     const icon = document.getElementById('finishIcon');
     const title = document.getElementById('finishTitle');
@@ -385,8 +392,24 @@ function showResult(isWin, message = "") {
         overlay.querySelector('div').style.borderColor = "#ef4444";
     }
     overlay.classList.remove('hidden');
+    setTimeout(() => {
+    overlay.classList.add('hidden');
+    startNewRound();
+}, 2000);
 }
+function startNewRound() {
+    gameStarted = false;
+    opReady = false;
+    meReady = false;
+    currentPendingGuess = null;
+    opponentSecret = "";
 
+    document.getElementById('guessPlay').classList.add('hidden');
+    document.getElementById('guessSetup').classList.remove('hidden');
+
+    document.getElementById('readyBtn').disabled = false;
+    document.getElementById('waitMsg').innerText = "ابدأ جولة جديدة";
+}
 // تعديل داخل الـ handleAction والـ saveLocalLog:
 // بدلاً من alert("🏆 مبروك الفوز!"); استبدلها بـ:
 // showResult(true);
@@ -643,11 +666,17 @@ function playRemoteStream(stream) {
 // عند انضمام لاعب جديد، قم بالاتصال به صوتياً
 // تضاف داخل الـ .on('broadcast', { event: 'join' }...
 function callPlayer(remotePeerId) {
-    enableMicrophone().then(stream => {
-        const call = myPeer.call(remotePeerId, stream);
-        call.on('stream', (remoteStream) => {
-            playRemoteStream(remoteStream);
-        });
+    if (!myStream || !myPeer) return;
+
+    console.log("Calling peer:", remotePeerId);
+    const call = myPeer.call(remotePeerId, myStream);
+    
+    call.on('stream', (remoteStream) => {
+        playRemoteStream(remoteStream, remotePeerId);
+    });
+
+    call.on('error', (err) => {
+        console.error("Call error:", err);
     });
 }
 
@@ -678,14 +707,17 @@ function callPlayer(remotePeerId) {
 
 // ================== INIT ==================
 function initMango() {
-    const g = document.getElementById('grid');
+const g = document.getElementById('grid');
     g.innerHTML = '';
 
     mData = new Array(25).fill(null).map(() => ({ v: null, m: false }));
     mCount = 1;
     mStarted = false;
 
-    document.getElementById('mangoWord').innerHTML = '';
+    // تصحيح: بدلاً من مسح الكلمة، نمسح تأثير الشطب فقط
+    const spans = document.querySelectorAll('#mangoWord span');
+    spans.forEach(s => s.classList.remove('striked'));
+
     document.getElementById('mTurnDisp').classList.add('hidden');
 
     const startBtn = document.getElementById('mangoStartBtn');
@@ -748,21 +780,28 @@ function randomFillMango() {
 // ================== READY ==================
 function confirmMangoReady() {
     if(!roomChannel) {
-        showToast("الاتصال لم يتم بعد، انتظر قليلاً");
+        showToast("الاتصال لم يتم بعد");
         return;
     }
     if(mCount < 26) {
         showToast("املأ الـ 25 خانة أولاً");
         return;
     }
-    mStarted = true;
+
     document.getElementById('mangoStartBtn').classList.add('hidden');
+
     if (mOnlineActive) {
-        roomChannel.send({ type: 'broadcast', event: 'ready_up' });
-        document.getElementById('mTurnDisp').innerText = "بانتظار اللاعبين...";
+        // إرسال إشارة للسيرفر أني جاهز
+        roomChannel.send({ 
+            type: 'broadcast', 
+            event: 'player_ready', 
+            payload: { id: myClientId } 
+        });
+        document.getElementById('mTurnDisp').innerText = "بانتظار باقي اللاعبين...";
         document.getElementById('mTurnDisp').classList.remove('hidden');
     } else {
-            showToast("ابدأ اللعب");
+        mStarted = true;
+        showToast("ابدأ اللعب");
     }
 }
 
@@ -805,20 +844,60 @@ function joinMango() {
 
 
 async function initMangoConnection(code) {
-    cleanupConnection(); // تنظيف أي قنوات قديمة فوراً
+    cleanupConnection();
 
-    // إظهار واجهة اللعب
     document.getElementById('mangoOnlineSetup').classList.add('hidden');
     document.getElementById('mangoPlayArea').classList.remove('hidden');
     document.getElementById('mOnlineHeader').classList.remove('hidden');
     document.getElementById('mRoomCodeDisp').innerText = "كود الغرفة: " + code;
 
-    // إنشاء القناة وتخزينها في متغير roomChannel
     roomChannel = supabaseClient.channel(`mango_${code}`, {
         config: { broadcast: { self: true } }
     });
+    // ... داخل initMangoConnection ...
+roomChannel
+.on('broadcast', { event: 'game_over' }, (p) => {
+    showWinScreen(p.payload.winnerName);
+})
+    .on('broadcast', { event: 'join' }, (p) => { /* كودك الحالي */ })
+    .on('broadcast', { event: 'sync_config' }, (p) => { /* كودك الحالي */ })
+    
+    // 1. استقبال إشارة الجاهزية من اللاعبين
+    // داخل initMangoConnection
+.on('broadcast', { event: 'player_ready' }, (p) => {
+    if (isHost) {
+        // إضافة اللاعب لقائمة الجاهزين لو مش موجود
+        if (!readyPlayers.includes(p.payload.id)) {
+            readyPlayers.push(p.payload.id);
+        }
 
-    // تعريف المستمعين للأحداث (Listeners)
+        // الشرط الحاسم: لا تبدأ إلا لو عدد الجاهزين = عدد اللاعبين الفعلي في الغرفة
+        // ويجب أن يكون هناك لاعبين على الأقل (mPlayers.length >= 2)
+        if (mPlayers.length >= 2 && readyPlayers.length === mPlayers.length) {
+            roomChannel.send({
+                type: 'broadcast',
+                event: 'start_game',
+                payload: { turn: 0 }
+            });
+        } else {
+            // اختياري: إبلاغ الجميع كم واحد جاهز الآن
+            console.log(`Waiting for players... Ready: ${readyPlayers.length}/${mPlayers.length}`);
+        }
+    }
+})
+
+    // 2. استقبال أمر بدء اللعبة الفعلي للجميع
+    .on('broadcast', { event: 'start_game' }, (p) => {
+        mTurn = p.payload.turn;
+        mStarted = true;
+        updateMangoTurnUI();
+        document.getElementById('mTurnDisp').classList.remove('hidden');
+        showToast("بدأت اللعبة! انطلقوا");
+    })
+    
+    .on('broadcast', { event: 'pick_num' }, (p) => { /* كودك الحالي */ })
+// ... بقية الكود ...
+    // 1. تعريف مستمعي أحداث الشبكة
     roomChannel
         .on('broadcast', { event: 'join' }, (p) => {
             if (isHost) {
@@ -829,13 +908,15 @@ async function initMangoConnection(code) {
                     payload: { max: mMaxPlayers, currentPlayers: mPlayers }
                 });
                 
-                // اتصال صوتي باللاعب الجديد إذا كان المايكروفون يعمل
-                if (myStream && p.payload.id !== myClientId) {
-                    const call = myPeer.call(p.payload.id, myStream);
-                    call.on('stream', (remoteStream) => playRemoteStream(remoteStream, p.payload.id));
-                }
+                // تأخير للاتصال الصوتي لضمان جاهزية الطرف الآخر
+                setTimeout(() => {
+                    if (myStream && p.payload.id !== myClientId) {
+                        callPlayer(p.payload.id);
+                    }
+                }, 1000);
             }
         })
+        
         .on('broadcast', { event: 'sync_config' }, (p) => {
             if (!isHost) {
                 mMaxPlayers = p.payload.max;
@@ -853,52 +934,68 @@ async function initMangoConnection(code) {
             if (p.payload.id !== myClientId) addChatMessage("OP", p.payload.name, p.payload.msg);
         });
 
-    // الاشتراك الفعلي في القناة (Subscribe)
+    // 2. الاشتراك الفعلي في القناة وربط الصوت
     roomChannel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
             console.log("Connected to Supabase Realtime ✅");
             
-            // 1. تهيئة نظام الـ Peer باستخدام الـ Client ID الخاص بسوبابيز
+            // تهيئة الـ Peer مع STUN Servers لضمان عبور الشبكة
             myPeer = new Peer(myClientId, {
-                host: '0.peerjs.com',
-                secure: true,
-                port: 443,
+                config: {'iceServers': [
+                    { 'urls': 'stun:stun.l.google.com:19302' },
+                    { 'urls': 'stun:stun1.l.google.com:19302' }
+                ]},
                 debug: 1
             });
 
-            // 2. استقبال المكالمات الصوتية تلقائياً
+            // استقبال المكالمات
             myPeer.on('call', (call) => {
                 if (myStream) {
                     call.answer(myStream);
                     call.on('stream', (remoteStream) => playRemoteStream(remoteStream, call.peer));
+                } else {
+                    // طلب المايك لو مكنش مفتوح
+                    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                        myStream = stream;
+                        call.answer(myStream);
+                        call.on('stream', (remoteStream) => playRemoteStream(remoteStream, call.peer));
+                    }).catch(() => console.warn("Mic access denied on incoming call"));
                 }
             });
+            
 
-            // 3. تفعيل زر الجاهزية وربطه بفتح المايكروفون (Interaction)
+            // زر الجاهزية والمايكروفون
             const startBtn = document.getElementById('mangoStartBtn');
             if (startBtn) {
                 startBtn.disabled = false;
                 startBtn.innerText = "جاهز! 🚀";
                 startBtn.onclick = async () => {
                     try {
-                        // محاولة فتح المايك عند الضغط على الزر لتجاوز قيود المتصفح
-                        myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        console.log("Microphone access granted 🎙️");
+                        if (!myStream) {
+                            myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        }
+                        // الاتصال بكل الموجودين
+                        mPlayers.forEach(id => {
+                            if (id !== myClientId) callPlayer(id);
+                        });
                     } catch (e) {
-                        console.error("Microphone access denied");
+                        console.warn("Could not access microphone");
                     }
-                    // كود بدء اللعبة الأصلي عندك هنا...
+                    confirmMangoReady(); 
                 };
             }
 
-            // إعلام الغرفة بانضمامي
             await roomChannel.send({
                 type: 'broadcast',
                 event: 'join',
                 payload: { id: myClientId, name: playerName }
             });
+            
         }
+        
     });
+    
+    
 
     initMango();
 }
@@ -971,8 +1068,87 @@ function checkM() {
 }
 
 function updateMangoWord(lines) {
-    const word = "MANGO";
-    document.getElementById('mangoWord').innerText = word.slice(0, lines);
+    const spans = document.querySelectorAll('#mangoWord span');
+    spans.forEach((span, idx) => {
+        if (idx < lines) {
+            span.classList.add('striked');
+        } else {
+            span.classList.remove('striked');
+        }
+    });
+
+    if (lines >= 5) {
+        declareWinner();
+    }
+}
+
+function declareWinner() {
+    if (mOnlineActive) {
+        // أي لاعب يخلص الـ 5 خطوط يبعث للكل إنه فاز
+        roomChannel.send({
+            type: 'broadcast',
+            event: 'game_over',
+            payload: { 
+                winnerId: myClientId, 
+                winnerName: playerName 
+            }
+        });
+    } else {
+        showWinScreen(playerName);
+    }
+}
+function updateScoreUI() {
+    const scoreDisp = document.getElementById('mScoreDisp');
+    if (scoreDisp) {
+        scoreDisp.innerText = `النتيجة: أنت ${myScore} | الخصم ${enemyScore}`;
+    }
+}
+function resetMangoRound() {
+    const overlay = document.getElementById('winOverlay');
+    if (overlay) overlay.remove();
+
+    readyPlayers = []; // تصفير الجاهزية فقط
+    mStarted = false;
+
+    initMango(); // تنظيف الجدول والحروف
+
+    const startBtn = document.getElementById('mangoStartBtn');
+    if (startBtn) {
+        startBtn.classList.remove('hidden');
+        startBtn.innerText = "جاهز للجولة الجديدة! 🚀";
+    }
+
+    updateScoreUI();
+    updateMangoLobbyUI(); 
+}
+function showWinScreen(winnerName) {
+    if (document.getElementById('winOverlay')) return;
+
+    // تحديد هل أنا الفائز أم الخصم بناءً على الاسم المبعوث في الـ Broadcast
+    const isMe = (winnerName === playerName);
+    
+    if (isMe) {
+        myScore++;
+    } else {
+        enemyScore++;
+    }
+    
+    updateScoreUI();
+
+    const winDiv = document.createElement('div');
+    winDiv.id = "winOverlay";
+    // ... (بقية ستيل winDiv كما هو في كودك) ...
+
+    winDiv.innerHTML = `
+        <h1 style="font-size:4rem;">${isMe ? '🏆' : '💀'}</h1>
+        <h2 style="font-size:2rem; color:${isMe ? '#10b981' : '#ef4444'};">${isMe ? 'أنت الفائز!' : 'لقد خسرت هذه الجولة'}</h2>
+        <p style="font-size:1.5rem;">الفائز: ${winnerName}</p>
+        <div style="font-size:1.2rem; margin:15px; background:#1e293b; padding:10px 20px; border-radius:10px;">
+           النتيجة الحالية: أنت ${myScore} - الخصم ${enemyScore}
+        </div>
+        <button onclick="resetMangoRound()" style="padding:12px 30px; background:#10b981; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold;">بدء جولة جديدة</button>
+    `;
+    document.body.appendChild(winDiv);
 }
 function showMangoOnlineSetup() {
     document.getElementById('mangoModeSelect').classList.add('hidden');
@@ -1001,6 +1177,7 @@ function cleanupConnection() {
 
     mPlayers = [];
     mReadyCount = 0;
+    readyPlayers = [];
 }
 window.setMaxPlayers = function(n) {
     mMaxPlayers = n;
