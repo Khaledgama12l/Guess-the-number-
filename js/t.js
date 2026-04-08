@@ -571,73 +571,60 @@ function addChatMessage(sender, name, msg) {
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 }
-
-async function enableMicrophone() {
-    const btn = document.getElementById('micBtn');
-    
-    // حالة الغلق: إذا كان المايك يعمل بالفعل
-    if (myStream) {
-        myStream.getTracks().forEach(track => track.stop());
-        myStream = null;
-        btn.innerHTML = "🔇 المايك مقفول";
-        btn.classList.replace('btn-primary', 'btn-alt');
-        return;
-    }
-
-    // حالة الفتح
-    try {
-        myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        btn.innerHTML = "🎙️ المايك يعمل";
-        btn.classList.replace('btn-alt', 'btn-primary');
-        
-        // إذا دخلت الغرفة والمايك شغال، اتصل بالباقي فوراً
-        mPlayers.forEach(id => {
-            if (id !== myClientId) callPlayer(id);
-        });
-
-        return myStream;
-    } catch (err) {
-        showToast("يجب السماح بالوصول للمايكروفون");
-    }
-}
-
-
-
 let myPeer;
 let myStream;
 
 function initVoiceChat() {
-    if (!myClientId) return;
-    
-    // تأكد من قفل أي اتصال قديم تماماً
-    if (myPeer) {
-        myPeer.destroy();
-    }
+    if (myPeer) myPeer.destroy();
 
-    // إضافة إعدادات السيرفر الافتراضي لضمان استقرار أسرع
+    // إنشاء كائن Peer جديد مع إعدادات سيرفر استقرار
     myPeer = new Peer(myClientId, {
-        debug: 1
-    }); 
+        debug: 1,
+        config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
+    });
 
     myPeer.on('open', (id) => {
         console.log('Voice Chat Ready. Peer ID:', id);
     });
 
-    myPeer.on('error', (err) => {
-        console.error('PeerJS Error:', err.type);
-        // لو الـ ID مستخدم، جرب تعمل reconnect بعد ثانية
-        if (err.type === 'unavailable-id') {
-            setTimeout(() => initVoiceChat(), 1000);
-        }
-    });
-
-    myPeer.on('call', async (call) => {
-        // الرد التلقائي فقط إذا كان المايك شغال عندي
+    myPeer.on('call', (call) => {
+        // الرد تلقائياً إذا كان المايك شغال عندي
         if (myStream) {
             call.answer(myStream);
             call.on('stream', (remoteStream) => playRemoteStream(remoteStream));
         }
     });
+
+    // معالجة خطأ انقطاع السيرفر (الموجود في الصورة da2642)
+    myPeer.on('error', (err) => {
+        console.error('PeerJS Error:', err.type);
+        if (err.type === 'disconnected') {
+            myPeer.reconnect();
+        }
+    });
+}
+
+async function enableMicrophone() {
+    const btn = document.getElementById('micBtn');
+    
+    if (myStream) {
+        myStream.getTracks().forEach(track => track.stop());
+        myStream = null;
+        btn.innerHTML = "🔇 المايك مقفول";
+        return;
+    }
+
+    try {
+        myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        btn.innerHTML = "🎙️ المايك يعمل";
+        
+        // عند فتح المايك، اتصل بكل الموجودين في الغرفة حالياً
+        mPlayers.forEach(id => {
+            if (id !== myClientId) callPlayer(id);
+        });
+    } catch (err) {
+        showToast("لازم توافق على إذن المايكروفون من المتصفح");
+    }
 }
 function playRemoteStream(stream) {
     let audio = document.getElementById('remoteAudio_' + stream.id);
@@ -817,8 +804,7 @@ function joinMango() {
 }
 
 
-
-function initMangoConnection(code) {
+async function initMangoConnection(code) {
     cleanupConnection(); // تنظيف أي قنوات قديمة فوراً
 
     // إظهار واجهة اللعب
@@ -842,8 +828,12 @@ function initMangoConnection(code) {
                     event: 'sync_config',
                     payload: { max: mMaxPlayers, currentPlayers: mPlayers }
                 });
-                // إذا كان المايك شغال، اتصل باللاعب الجديد صوتياً
-                if (myStream && p.payload.id !== myClientId) callPlayer(p.payload.id);
+                
+                // اتصال صوتي باللاعب الجديد إذا كان المايكروفون يعمل
+                if (myStream && p.payload.id !== myClientId) {
+                    const call = myPeer.call(p.payload.id, myStream);
+                    call.on('stream', (remoteStream) => playRemoteStream(remoteStream, p.payload.id));
+                }
             }
         })
         .on('broadcast', { event: 'sync_config' }, (p) => {
@@ -868,14 +858,37 @@ function initMangoConnection(code) {
         if (status === 'SUBSCRIBED') {
             console.log("Connected to Supabase Realtime ✅");
             
-            // تفعيل نظام الصوت بعد استقرار الاتصال
-            initVoiceChat();
+            // 1. تهيئة نظام الـ Peer باستخدام الـ Client ID الخاص بسوبابيز
+            myPeer = new Peer(myClientId, {
+                host: '0.peerjs.com',
+                secure: true,
+                port: 443,
+                debug: 1
+            });
 
-            // تفعيل زر الجاهزية
+            // 2. استقبال المكالمات الصوتية تلقائياً
+            myPeer.on('call', (call) => {
+                if (myStream) {
+                    call.answer(myStream);
+                    call.on('stream', (remoteStream) => playRemoteStream(remoteStream, call.peer));
+                }
+            });
+
+            // 3. تفعيل زر الجاهزية وربطه بفتح المايكروفون (Interaction)
             const startBtn = document.getElementById('mangoStartBtn');
             if (startBtn) {
                 startBtn.disabled = false;
                 startBtn.innerText = "جاهز! 🚀";
+                startBtn.onclick = async () => {
+                    try {
+                        // محاولة فتح المايك عند الضغط على الزر لتجاوز قيود المتصفح
+                        myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        console.log("Microphone access granted 🎙️");
+                    } catch (e) {
+                        console.error("Microphone access denied");
+                    }
+                    // كود بدء اللعبة الأصلي عندك هنا...
+                };
             }
 
             // إعلام الغرفة بانضمامي
@@ -888,6 +901,18 @@ function initMangoConnection(code) {
     });
 
     initMango();
+}
+
+// دالة مساعدة لتشغيل صوت اللاعبين الآخرين
+function playRemoteStream(stream, peerId) {
+    let audio = document.getElementById(`audio_${peerId}`);
+    if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = `audio_${peerId}`;
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+    }
+    audio.srcObject = stream;
 }
 
 // ================== GAME ==================

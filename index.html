@@ -54,6 +54,13 @@
     transition: opacity 0.3s;
 }
 .toast.hidden { display: none; }
+/* أضف هذا الكود في ملف الـ CSS الخاص بك */
+#mangoPlayArea, .number-cell, button {
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none;     /* IE 10 and IE 11 */
+    user-select: none;         /* Standard syntax */
+    touch-action: manipulation; /* يحسن الاستجابة على الموبايل ويمنع الـ Double-tap zoom */
+}
     </style>
 </head>
 
