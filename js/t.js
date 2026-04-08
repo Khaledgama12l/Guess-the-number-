@@ -22,7 +22,6 @@
     let playerName = localStorage.getItem("playerName");
     
     if (!playerName) {
-        playerName = prompt("اكتب اسمك:");
         if (!playerName) playerName = "لاعب_" + Math.floor(Math.random() * 10000);
         localStorage.setItem("playerName", playerName);
     }
